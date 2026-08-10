@@ -1,18 +1,31 @@
 defmodule Boom.Scene.Home do
   defmodule State do
-    @enforce_keys [:min_zoom, :current_zoom, :viewport_size]
+    @enforce_keys [:min_zoom, :viewport_size]
 
     defstruct(
+      # Minimum zoom based on window size.
+      # Zoom = number of pixels per minor cell.
       min_zoom: nil,
+      # Current user-selected zoom level.
+      # If nil, the user has not zoomed yet; default to min_zoom.
       current_zoom: nil,
+      # Last zoomlevel we rendered at.
+      # If this hasn't changed, we don't need to re-render.
       last_zoom: nil,
+      # Size of the viewport and the map.  Used for centering the map when zoomed out.
       viewport_size: nil,
       map_size: {0, 0},
+      # Offset of the map, in pixels distance from origin.
+      # Will almost certainly be immediately updated by recentering on launch.
       offset: {0, 0},
+      # Mouse cursor position.  Used to render the coordinate tooltip.
       cursor: {0, 0},
+      # Are we currently drag-panning the map around?
       panning: false,
+      # Render and zoom events are ignored while an event is already pending.
       render_pending: false,
       zoom_pending: false,
+      # The cached graph, so that we only need to rebuild it on zoom.
       graph: nil
     )
   end
@@ -47,7 +60,6 @@ defmodule Boom.Scene.Home do
 
     state = %State{
       min_zoom: zoom,
-      current_zoom: zoom,
       viewport_size: size
     }
 
@@ -57,17 +69,23 @@ defmodule Boom.Scene.Home do
 
   @impl true
   def handle_input(
-        {:viewport, {:reshape, {_, _} = size}} = event,
+        {:viewport, {:reshape, {_, _} = size}},
         _context,
         %Scene{assigns: %{state: %State{} = state}} = scene
       ) do
     min_zoom = minimum_zoom_level(size)
 
+    cur_zoom =
+      case state.current_zoom do
+        nil -> nil
+        zoom when is_integer(zoom) -> max(state.current_zoom, min_zoom)
+      end
+
     state = %State{
       state
       | viewport_size: size,
         min_zoom: min_zoom,
-        current_zoom: max(state.current_zoom, min_zoom)
+        current_zoom: cur_zoom
     }
 
     {:noreply, scene |> assign(state: state) |> queue_render()}
@@ -121,7 +139,7 @@ defmodule Boom.Scene.Home do
         _context,
         %Scene{assigns: %{state: %State{} = state}} = scene
       ) do
-    old_zoom = state.current_zoom
+    old_zoom = state.current_zoom || state.min_zoom
 
     new_zoom =
       case scroll_by do
@@ -143,7 +161,7 @@ defmodule Boom.Scene.Home do
 
   @impl true
   def handle_info(:render, %Scene{assigns: %{state: %State{} = state}} = scene) do
-    zoom = state.current_zoom
+    zoom = state.current_zoom || state.min_zoom
 
     state =
       if state.last_zoom == zoom do
@@ -169,7 +187,7 @@ defmodule Boom.Scene.Home do
         {:zoom, new_zoom, {mouse_x, mouse_y}},
         %Scene{assigns: %{state: %State{} = state}} = scene
       ) do
-    old_zoom = state.current_zoom
+    old_zoom = state.current_zoom || state.min_zoom
     new_zoom = new_zoom |> max(state.min_zoom)
 
     {old_offset_x, old_offset_y} = state.offset
@@ -184,7 +202,8 @@ defmodule Boom.Scene.Home do
     {:noreply, scene |> assign(:state, state) |> queue_render()}
   end
 
-  defp rebuild_graph(%State{current_zoom: zoom} = state) do
+  defp rebuild_graph(%State{} = state) do
+    zoom = state.current_zoom || state.min_zoom
     width = @minor_grid_width * zoom + 1
     height = @minor_grid_height * zoom + 1
 
