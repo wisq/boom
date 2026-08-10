@@ -35,23 +35,35 @@ defmodule Boom.Scene.Home do
 
   alias Scenic.{Scene, Graph, Primitive}
   alias Scenic.Primitives, as: P
+  alias Boom.Grid
 
-  @major_columns ?A..?T |> Enum.map(&<<&1>>)
-  @major_rows 1..10 |> Enum.reverse()
-  @minor_subdivisions 10
+  {grid_width, grid_height} = Grid.grid_size()
+  @grid_width grid_width
+  @grid_height grid_height
+  @minor_subdivisions Grid.minor_columns() |> Enum.count()
+  @major_grid_lines [
+                      vertical: 0..grid_width//@minor_subdivisions,
+                      horizontal: 0..grid_height//@minor_subdivisions
+                    ]
+                    |> Enum.flat_map(fn {type, lines} -> Enum.map(lines, &{type, &1}) end)
+  @minor_grid_lines [
+                      vertical: 0..grid_width//1,
+                      horizontal: 0..grid_height//1
+                    ]
+                    |> Enum.flat_map(fn {type, lines} -> Enum.map(lines, &{type, &1}) end)
+                    |> Enum.reject(&(&1 in @major_grid_lines))
 
-  @major_grid_width Enum.count(@major_columns)
-  @major_grid_height Enum.count(@major_rows)
-  @minor_grid_width @major_grid_width * @minor_subdivisions
-  @minor_grid_height @major_grid_height * @minor_subdivisions
-
-  @major_line_colour :white
-  @minor_line_colour {255, 255, 255, 64}
+  @major_line_stroke {1, :white}
+  @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
 
+  @coords_range_x 0..(grid_width - 1)
+  @coords_range_y 0..(grid_height - 1)
   @coords_tooltip_offset {5, 5}
+
   @min_padding 10
   @scroll_delay 20
+  @zoom_factor 1.05
 
   @impl true
   def init(%Scene{} = scene, _param, _opts) do
@@ -145,8 +157,8 @@ defmodule Boom.Scene.Home do
 
     new_zoom =
       case scroll_by do
-        n when n > 0 -> old_zoom - 1
-        n when n < 0 -> old_zoom + 1
+        n when n > 0 -> floor(old_zoom / @zoom_factor)
+        n when n < 0 -> ceil(old_zoom * @zoom_factor)
         _ -> old_zoom
       end
 
@@ -206,16 +218,16 @@ defmodule Boom.Scene.Home do
 
   defp rebuild_graph(%State{} = state) do
     zoom = state.current_zoom || state.min_zoom
-    width = @minor_grid_width * zoom + 1
-    height = @minor_grid_height * zoom + 1
+    width = @grid_width * zoom + 1
+    height = @grid_height * zoom + 1
 
     graph =
       Graph.build(font: :roboto, font_size: 20)
       |> P.group(
         fn g ->
           g
-          |> draw_minor_lines(zoom, width, height)
-          |> draw_major_lines(zoom, width, height)
+          |> draw_lines(:minor, @minor_grid_lines, @minor_line_stroke, zoom, width, height)
+          |> draw_lines(:major, @major_grid_lines, @major_line_stroke, zoom, width, height)
           |> label_sectors(zoom)
         end,
         id: :map
@@ -234,44 +246,26 @@ defmodule Boom.Scene.Home do
     %State{state | graph: graph, map_size: {width, height}}
   end
 
-  defp draw_minor_lines(graph, zoom, _, _) when zoom < 8, do: graph
+  defp draw_lines(graph, :minor, _, _, zoom, _, _) when zoom < 8, do: graph
 
-  defp draw_minor_lines(graph, zoom, width, height) do
-    graph =
-      Enum.reduce(0..@minor_grid_width, graph, fn column, acc ->
+  defp draw_lines(graph, _type, lines, stroke, zoom, width, height) do
+    lines
+    |> Enum.map(fn
+      {:vertical, column} ->
         x = column * zoom
-        P.line(acc, {{x, 0}, {x, height}}, stroke: {1, @minor_line_colour})
-      end)
+        {{x, 0}, {x, height}}
 
-    Enum.reduce(0..@minor_grid_height, graph, fn row, acc ->
-      y = row * zoom
-      P.line(acc, {{0, y}, {width, y}}, stroke: {1, @minor_line_colour})
+      {:horizontal, row} ->
+        y = row * zoom
+        {{0, y}, {width, y}}
     end)
-  end
-
-  defp draw_major_lines(graph, zoom, width, height) do
-    graph =
-      Enum.reduce(0..@major_grid_width, graph, fn column, acc ->
-        x = column * zoom * @minor_subdivisions
-        P.line(acc, {{x, 0}, {x, height}}, stroke: {1, @major_line_colour})
-      end)
-
-    Enum.reduce(0..@major_grid_height, graph, fn row, acc ->
-      y = row * zoom * @minor_subdivisions
-      P.line(acc, {{0, y}, {width, y}}, stroke: {1, @major_line_colour})
+    |> Enum.reduce(graph, fn coords, gr ->
+      P.line(gr, coords, stroke: stroke)
     end)
   end
 
   defp label_sectors(graph, zoom) do
-    @major_columns
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {column, x} ->
-      @major_rows
-      |> Enum.with_index()
-      |> Enum.map(fn {row, y} ->
-        {"#{column}#{row}", {x, y}}
-      end)
-    end)
+    Grid.sectors()
     |> Enum.reduce(graph, fn {label, {column, row}}, acc ->
       x = column * zoom * @minor_subdivisions
       y = row * zoom * @minor_subdivisions
@@ -284,21 +278,18 @@ defmodule Boom.Scene.Home do
     Graph.modify(graph, :map, &Primitive.put_transform(&1, :translate, offset))
   end
 
-  @coords_range_x 0..(@minor_grid_width - 1)
-  @coords_range_y 0..(@minor_grid_height - 1)
-
   defp update_coords(%Graph{} = graph, {cursor_x, cursor_y} = cursor, {offset_x, offset_y}, zoom) do
-    grid_x = (cursor_x - offset_x) |> floor() |> div(zoom)
-    grid_y = (cursor_y - offset_y) |> floor() |> div(zoom)
+    grid_x = ((cursor_x - offset_x) / zoom) |> floor()
+    grid_y = ((cursor_y - offset_y) / zoom) |> floor()
 
     if grid_x in @coords_range_x && grid_y in @coords_range_y do
       {major_x, minor_x} = grid_x |> div_rem(@minor_subdivisions)
       {major_y, minor_y} = grid_y |> div_rem(@minor_subdivisions)
 
-      major_column = @major_columns |> Enum.at(major_x)
-      major_row = @major_rows |> Enum.at(major_y)
-      minor_column = minor_x
-      minor_row = @minor_subdivisions - 1 - minor_y
+      major_column = Grid.major_columns() |> Enum.at(major_x)
+      major_row = Grid.major_rows() |> Enum.at(major_y)
+      minor_column = Grid.minor_columns() |> Enum.at(minor_x)
+      minor_row = Grid.minor_rows() |> Enum.at(minor_y)
 
       coords = "#{major_column}#{major_row}  #{minor_column}:#{minor_row}"
 
@@ -357,8 +348,8 @@ defmodule Boom.Scene.Home do
   # where the entire grid (plus @min_padding) fits within the window.
   defp minimum_zoom_level({width, height}) do
     # The +1 accounts for the final grid line in each direction.
-    by_width = div(width - 1 - @min_padding, @minor_grid_width)
-    by_height = div(height - 1 - @min_padding, @minor_grid_height)
+    by_width = div(width - 1 - @min_padding, @grid_width)
+    by_height = div(height - 1 - @min_padding, @grid_height)
     min(by_width, by_height)
   end
 end
