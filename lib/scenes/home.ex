@@ -88,6 +88,8 @@ defmodule Boom.Scene.Home do
         current_zoom: cur_zoom
     }
 
+    Boom.save_viewport_size(size)
+
     {:noreply, scene |> assign(state: state) |> queue_render()}
   end
 
