@@ -23,8 +23,9 @@ defmodule Boom.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:scenic, "~> 0.11.0"},
-      {:scenic_driver_local, "~> 0.11.0"},
+      {:scenic, "~> 0.11"},
+      {:scenic_driver_local, "~> 0.11"},
+      {:geo_postgis, "~> 3.7"}
     ]
   end
 end
