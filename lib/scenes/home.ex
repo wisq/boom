@@ -36,29 +36,32 @@ defmodule Boom.Scene.Home do
   alias Scenic.{Scene, Graph, Primitive}
   alias Scenic.Primitives, as: P
   alias Boom.Grid
+  alias Boom.Grid.Block
 
   {grid_width, grid_height} = Grid.grid_size()
   @grid_width grid_width
   @grid_height grid_height
-  @minor_subdivisions Grid.minor_columns() |> Enum.count()
-  @major_grid_lines [
-                      vertical: 0..grid_width//@minor_subdivisions,
-                      horizontal: 0..grid_height//@minor_subdivisions
-                    ]
-                    |> Enum.flat_map(fn {type, lines} -> Enum.map(lines, &{type, &1}) end)
-  @minor_grid_lines [
-                      vertical: 0..grid_width//1,
-                      horizontal: 0..grid_height//1
-                    ]
-                    |> Enum.flat_map(fn {type, lines} -> Enum.map(lines, &{type, &1}) end)
-                    |> Enum.reject(&(&1 in @major_grid_lines))
+
+  lines_from_blocks = fn blocks ->
+    blocks
+    |> Enum.flat_map(fn %Block{extents: {min_x..max_x//_, min_y..max_y//_}} ->
+      [
+        {:vertical, min_x},
+        {:vertical, max_x + 1},
+        {:horizontal, min_y},
+        {:horizontal, max_y + 1}
+      ]
+    end)
+    |> Enum.uniq()
+  end
+
+  @major_grid_lines Grid.sectors() |> then(lines_from_blocks)
+  @minor_grid_lines Grid.subdivisions() |> then(lines_from_blocks)
 
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
 
-  @coords_range_x 0..(grid_width - 1)
-  @coords_range_y 0..(grid_height - 1)
   @coords_tooltip_offset {5, 5}
 
   @min_padding 10
@@ -266,11 +269,11 @@ defmodule Boom.Scene.Home do
 
   defp label_sectors(graph, zoom) do
     Grid.sectors()
-    |> Enum.reduce(graph, fn {label, {column, row}}, acc ->
-      x = column * zoom * @minor_subdivisions
-      y = row * zoom * @minor_subdivisions
+    |> Enum.reduce(graph, fn %Block{name: name, extents: {gx.._//_, gy.._//_}}, gr ->
+      x = gx * zoom
+      y = gy * zoom
 
-      P.text(acc, label, translate: {x + 2, y + 22}, fill: @sector_label_colour)
+      P.text(gr, name, translate: {x + 2, y + 22}, fill: @sector_label_colour)
     end)
   end
 
@@ -282,29 +285,19 @@ defmodule Boom.Scene.Home do
     grid_x = ((cursor_x - offset_x) / zoom) |> floor()
     grid_y = ((cursor_y - offset_y) / zoom) |> floor()
 
-    if grid_x in @coords_range_x && grid_y in @coords_range_y do
-      {major_x, minor_x} = grid_x |> div_rem(@minor_subdivisions)
-      {major_y, minor_y} = grid_y |> div_rem(@minor_subdivisions)
+    case Grid.subdivision_at(grid_x, grid_y) do
+      {:ok, block} ->
+        graph
+        |> Graph.modify(:coords_text, &P.text(&1, block.name))
+        |> Graph.modify(
+          :coords,
+          &Primitive.put_transform(&1, :translate, cursor |> coords_add(@coords_tooltip_offset))
+        )
 
-      major_column = Grid.major_columns() |> Enum.at(major_x)
-      major_row = Grid.major_rows() |> Enum.at(major_y)
-      minor_column = Grid.minor_columns() |> Enum.at(minor_x)
-      minor_row = Grid.minor_rows() |> Enum.at(minor_y)
-
-      coords = "#{major_column}#{major_row}  #{minor_column}:#{minor_row}"
-
-      graph
-      |> Graph.modify(:coords_text, &P.text(&1, coords))
-      |> Graph.modify(
-        :coords,
-        &Primitive.put_transform(&1, :translate, cursor |> coords_add(@coords_tooltip_offset))
-      )
-    else
-      graph
+      :error ->
+        graph
     end
   end
-
-  defp div_rem(x, y), do: {div(x, y), rem(x, y)}
 
   defp recentre_map(
          %State{map_size: map_size, offset: old_offset} = state,
