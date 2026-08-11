@@ -4,14 +4,30 @@ defmodule Boom do
   """
   require Logger
 
-  defp viewport_size_file do
-    :code.priv_dir(:boom)
-    |> Path.join("viewport_size.txt")
+  def start(_type, _args) do
+    # load the viewport configuration from config
+    main_viewport_config =
+      Application.get_env(:boom, :viewport)
+      |> load_viewport_size()
+
+    # start the application with the viewport
+    children = [
+      PubSub,
+      Boom.CommandLog,
+      {Scenic, [main_viewport_config]}
+    ]
+
+    Supervisor.start_link(children, strategy: :one_for_one)
   end
 
   def save_viewport_size({width, height}) do
     viewport_size_file()
     |> File.write!("#{width}:#{height}")
+  end
+
+  defp viewport_size_file do
+    :code.priv_dir(:boom)
+    |> Path.join("viewport_size.txt")
   end
 
   defp load_viewport_size(config) do
@@ -24,20 +40,5 @@ defmodule Boom do
     else
       _ -> config
     end
-  end
-
-  def start(_type, _args) do
-    # load the viewport configuration from config
-    main_viewport_config =
-      Application.get_env(:boom, :viewport)
-      |> load_viewport_size()
-
-    # start the application with the viewport
-    children = [
-      {Scenic, [main_viewport_config]},
-      Boom.PubSub.Supervisor
-    ]
-
-    Supervisor.start_link(children, strategy: :one_for_one)
   end
 end
