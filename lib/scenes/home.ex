@@ -84,11 +84,11 @@ defmodule Boom.Scene.Home do
 
   @impl true
   def handle_input(
-        {:viewport, {:reshape, {_, _} = size}},
+        {:viewport, {:reshape, {_, _} = new_size}},
         _context,
-        %Scene{assigns: %{state: %State{} = state}} = scene
+        %Scene{assigns: %{state: %State{viewport_size: old_size} = state}} = scene
       ) do
-    min_zoom = minimum_zoom_level(size)
+    min_zoom = minimum_zoom_level(new_size)
 
     cur_zoom =
       case state.current_zoom do
@@ -98,12 +98,14 @@ defmodule Boom.Scene.Home do
 
     state = %State{
       state
-      | viewport_size: size,
+      | viewport_size: new_size,
         min_zoom: min_zoom,
         current_zoom: cur_zoom
     }
 
-    Boom.save_viewport_size(size)
+    if is_resize_significant?(old_size, new_size) do
+      Boom.save_viewport_size(new_size)
+    end
 
     {:noreply, scene |> assign(state: state) |> queue_render()}
   end
@@ -344,5 +346,12 @@ defmodule Boom.Scene.Home do
     by_width = div(width - 1 - @min_padding, @grid_width)
     by_height = div(height - 1 - @min_padding, @grid_height)
     min(by_width, by_height)
+  end
+
+  # Some window managers tend to do a bit of minor futzing with size at
+  # startup. To avoid saving all these (and the window size creeping
+  # bigger/smaller across multiple startups), skip saving minor changes.
+  defp is_resize_significant?({x1, y1}, {x2, y2}) do
+    abs(x1 - x2) >= 5 || abs(y1 - y2) >= 5
   end
 end
