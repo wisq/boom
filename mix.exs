@@ -25,7 +25,8 @@ defmodule Boom.MixProject do
     [
       {:scenic, "~> 0.11"},
       {:scenic_driver_local, "~> 0.11"},
-      {:geo_postgis, "~> 3.7"}
+      {:geo_postgis, "~> 3.7"},
+      {:pubsub, "~> 1.1"}
     ]
   end
 end
