@@ -28,10 +28,27 @@ defmodule Boom.CommandLog do
     end
   end
 
+  def add(%Command{} = command, pid \\ __MODULE__) do
+    GenServer.call(pid, {:add, command})
+  end
+
   @impl true
   def init(ets) when is_atom(ets) do
     :ets.new(ets, [:set, :protected, :named_table])
     Logger.info(@log_prefix <> "Started using table #{inspect(ets)}.")
     {:ok, %State{ets: ets}}
+  end
+
+  @impl true
+  def handle_call(
+        {:add, %Command{target: target} = command},
+        _from,
+        %State{next_id: next_id, ets: ets} = state
+      ) do
+    command = %Command{command | id: next_id}
+    entries = [command | entries(target, ets)]
+
+    :ets.insert(ets, [{target, entries}])
+    {:reply, :ok, %State{state | next_id: next_id + 1}}
   end
 end
