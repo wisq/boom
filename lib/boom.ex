@@ -13,6 +13,7 @@ defmodule Boom do
     # start the application with the viewport
     children = [
       PubSub,
+      Boom.GeoEngine,
       Boom.CommandLog,
       {Scenic, [main_viewport_config]}
     ]
