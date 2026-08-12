@@ -2,25 +2,47 @@ defmodule Boom.ObjectRegistry do
   @special_names [:ownship]
   defguard is_object_name(name) when is_binary(name) or name in @special_names
 
+  @special_geoms [:pending, :unknown, :disjoint]
+  defguard is_geometry(geom) when is_struct(geom) or geom in @special_geoms
+
   def child_spec(opts) do
     Registry.child_spec(opts ++ [name: __MODULE__, keys: :unique])
   end
 
   def register(name) when is_object_name(name) do
-    Registry.register(__MODULE__, canonical(name), :pending)
+    Registry.register(__MODULE__, canonical(name), {-1, :pending})
+  end
+
+  def update(name, version, geometry)
+      when is_object_name(name) and is_integer(version) and is_geometry(geometry) do
+    Registry.update_value(__MODULE__, name, fn _ -> {version, geometry} end)
+    PubSub.publish(:object_registry, {:object_updated, name})
   end
 
   def whereis(name) when is_object_name(name) do
-    case lookup(name) do
-      {pid, _value} -> pid
-      nil -> nil
-    end
+    {pid, _, _} = lookup(name)
+    pid
   end
 
-  def lookup(name) when is_object_name(name) do
+  def version(name) when is_object_name(name) do
+    {_, version, _} = lookup(name)
+    version
+  end
+
+  def geometry(name) when is_object_name(name) do
+    {_, _, geometry} = lookup(name)
+    geometry
+  end
+
+  def all_geometries do
+    Registry.select(__MODULE__, [{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$3"}}]}])
+    |> Enum.map(fn {name, {_version, geometry}} -> {name, geometry} end)
+  end
+
+  defp lookup(name) when is_object_name(name) do
     case Registry.lookup(__MODULE__, String.downcase(name)) do
-      [{pid, value}] -> {pid, value}
-      [] -> nil
+      [{pid, {version, geometry}}] -> {pid, version, geometry}
+      [] -> {nil, -1, :pending}
     end
   end
 

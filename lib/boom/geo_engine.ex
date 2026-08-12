@@ -34,4 +34,11 @@ defmodule Boom.GeoEngine do
     )
     |> Repo.one()
   end
+
+  def split_multipolygon(%Geo.MultiPolygon{coordinates: polys}) do
+    polys
+    |> Enum.map(&%Geo.Polygon{coordinates: &1})
+  end
+
+  def split_multipolygon(%Geo.Polygon{} = poly), do: [poly]
 end

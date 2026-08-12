@@ -234,6 +234,7 @@ defmodule Boom.Scene.Home do
           |> draw_lines(:minor, @minor_grid_lines, @minor_line_stroke, zoom, width, height)
           |> draw_lines(:major, @major_grid_lines, @major_line_stroke, zoom, width, height)
           |> label_sectors(zoom)
+          |> draw_object_geometries(zoom)
         end,
         id: :map
       )
@@ -277,6 +278,15 @@ defmodule Boom.Scene.Home do
 
       P.text(gr, name, translate: {x + 2, y + 22}, fill: @sector_label_colour)
     end)
+  end
+
+  defp draw_object_geometries(graph, zoom) do
+    Boom.ObjectRegistry.all_geometries()
+    |> Enum.reduce(graph, fn {name, geometry}, gr ->
+      colour = pick_colour(name)
+      draw_polygon(gr, geometry, zoom, fill: colour, stroke: {2, brighter(colour)})
+    end)
+    |> IO.inspect(limit: :infinity)
   end
 
   defp transform_map(%Graph{} = graph, {_, _} = offset) do
@@ -353,5 +363,65 @@ defmodule Boom.Scene.Home do
   # bigger/smaller across multiple startups), skip saving minor changes.
   defp is_resize_significant?({x1, y1}, {x2, y2}) do
     abs(x1 - x2) >= 5 || abs(y1 - y2) >= 5
+  end
+
+  @hue_range {0.0, 360.0}
+  @saturation_range {30.0, 70.0}
+  @lightness_range {30.0, 70.0}
+  @maxint32 2 ** 32
+
+  def pick_colour(name) do
+    <<hue_seed::32, sat_seed::32, light_seed::32, _::binary>> = :crypto.hash(:md5, name)
+
+    hue = pick_in_range(@hue_range, hue_seed)
+    sat = pick_in_range(@saturation_range, sat_seed)
+    light = pick_in_range(@lightness_range, light_seed)
+
+    {:color_hsl, {hue, sat, light}}
+  end
+
+  defp pick_in_range({min, max}, byte) when byte in 0..@maxint32 do
+    min + byte / @maxint32 * (max - min)
+  end
+
+  defp brighter({:color_hsl, {hue, _, _}}), do: {:color_hsl, {hue, 100.0, 90.0}}
+
+  defp draw_polygon(graph, geometry, zoom, opts) do
+    geometry
+    |> Boom.GeoEngine.split_multipolygon()
+    |> Enum.flat_map(&geo_inner_outer_coords/1)
+    |> Enum.reduce(graph, fn
+      {:outer, geom}, gr ->
+        P.path(gr, coords_to_path(geom, zoom), opts)
+
+      {:inner, geom}, gr ->
+        P.path(gr, coords_to_path(geom, zoom), Keyword.put(opts, :fill, :black))
+    end)
+  end
+
+  defp geo_inner_outer_coords(%Geo.Polygon{coordinates: [outer, inner]}),
+    do: [{:outer, outer}, {:inner, inner}]
+
+  defp geo_inner_outer_coords(%Geo.Polygon{coordinates: [outer]}), do: [{:outer, outer}]
+
+  defp coords_to_path([coord | rest], zoom) do
+    {x, y} = Block.geo_coord_to_grid(coord)
+
+    [
+      :begin,
+      {:move_to, x * zoom, y * zoom}
+      | coords_to_path_rest(rest, zoom)
+    ]
+  end
+
+  defp coords_to_path_rest([{_, _}], _), do: [:close_path]
+
+  defp coords_to_path_rest([coord | rest], zoom) do
+    {x, y} = Block.geo_coord_to_grid(coord)
+
+    [
+      {:line_to, x * zoom, y * zoom}
+      | coords_to_path_rest(rest, zoom)
+    ]
   end
 end

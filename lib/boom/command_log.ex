@@ -11,13 +11,14 @@ defmodule Boom.CommandLog do
   end
 
   import Boom.ObjectRegistry, only: [is_object_name: 1]
+  alias Boom.Command
 
   @ets __MODULE__.ETS
   @log_prefix "[#{inspect(__MODULE__)}] "
 
   def start_link(opts) do
-    Keyword.put_new(opts, :name, __MODULE__)
     {ets, opts} = Keyword.pop(opts, :ets, @ets)
+    opts = Keyword.put_new(opts, :name, __MODULE__)
     GenServer.start_link(__MODULE__, ets, opts)
   end
 
@@ -26,6 +27,14 @@ defmodule Boom.CommandLog do
       [{^name, ents}] when is_list(ents) -> ents
       [] -> []
     end
+  end
+
+  def active_entries(name, ets \\ @ets) when is_object_name(name) do
+    entries(name, ets)
+    |> Enum.take_while(fn
+      %Command{type: Command.Invalidate} -> false
+      %Command{} -> true
+    end)
   end
 
   def add(%Command{} = command, pid \\ __MODULE__) do

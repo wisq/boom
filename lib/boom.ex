@@ -15,6 +15,8 @@ defmodule Boom do
       PubSub,
       Boom.GeoEngine,
       Boom.CommandLog,
+      Boom.ObjectRegistry,
+      Boom.ObjectSupervisor,
       {Scenic, [main_viewport_config]}
     ]
 

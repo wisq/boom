@@ -20,14 +20,12 @@ defmodule Boom.Grid.Block do
   @major_row_count Enum.count(@major_rows)
   @minor_row_count Enum.count(@minor_rows)
 
-  @grid_size {
-    Enum.count(@major_columns) * Enum.count(@minor_columns),
-    Enum.count(@major_rows) * Enum.count(@minor_rows)
-  }
-  def grid_size, do: @grid_size
+  @grid_width Enum.count(@major_columns) * Enum.count(@minor_columns)
+  @grid_height Enum.count(@major_rows) * Enum.count(@minor_rows)
+  def grid_size, do: {@grid_width, @grid_height}
 
   # 100m per minor block side
-  @geometry_size 100.0
+  @geometry_scale 100.0
 
   def major_coords do
     0..(@major_column_count - 1)
@@ -84,25 +82,42 @@ defmodule Boom.Grid.Block do
     |> add_geometry()
   end
 
-  def add_geometry(%Block{extents: {x1..x2//_, y1..y2//_}} = block) do
-    x1 = x1 * @geometry_size
-    y1 = y1 * @geometry_size
-    x2 = (x2 + 1) * @geometry_size
-    y2 = (y2 + 1) * @geometry_size
-
+  defp add_geometry(%Block{extents: {x1..x2//_, y1..y2//_}} = block) do
     %Block{
       block
-      | geometry: %Geo.Polygon{
-          coordinates: [
-            [
-              {x1, y1},
-              {x1, y2},
-              {x2, y2},
-              {x2, y1},
-              {x1, y1}
-            ]
-          ]
-        }
+      | geometry:
+          square(
+            grid_to_geo_coord({x1, y1}),
+            grid_to_geo_coord({x2 + 1, y2 + 1})
+          )
+    }
+  end
+
+  def square({x1, y1}, {x2, y2}) do
+    %Geo.Polygon{
+      coordinates: [
+        [
+          {x1, y1},
+          {x1, y2},
+          {x2, y2},
+          {x2, y1},
+          {x1, y1}
+        ]
+      ]
+    }
+  end
+
+  def grid_to_geo_coord({x, y}) do
+    {
+      x * @geometry_scale,
+      (@grid_height - y) * @geometry_scale
+    }
+  end
+
+  def geo_coord_to_grid({x, y}) do
+    {
+      x / @geometry_scale,
+      @grid_height - y / @geometry_scale
     }
   end
 end
