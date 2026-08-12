@@ -7,6 +7,8 @@ defmodule Boom.Grid do
                   Block.minor_coords() |> Enum.map(&Block.minor(sector, &1))
                 end)
 
+  @blocks_by_name Map.new(@sectors ++ @subdivisions, &{&1.name, &1})
+
   @subs_by_extent Map.new(@subdivisions, fn %Block{extents: {x..x//_, y..y//_}} = block ->
                     {{x, y}, block}
                   end)
@@ -24,4 +26,5 @@ defmodule Boom.Grid do
   defdelegate grid_size, to: Block
 
   def subdivision_at(x, y), do: Map.fetch(@subs_by_extent, {x, y})
+  def block_by_name(name), do: Map.fetch(@blocks_by_name, String.upcase(name))
 end

@@ -20,12 +20,25 @@ defmodule Boom.Command.Bearing do
   import Ecto.Query, only: [from: 2]
   alias Boom.GeoEngine, as: Repo
 
+  # max_dist of 30km is chosen to ensure that even a 45°-error (i.e.
+  # right-angled) triangle will always extend off one of the sides of the map,
+  # without the hypotenuse ever re-entering the grid.
+  #
+  # This WILL NOT WORK if you start going too far above 45°.  But that's fine,
+  # because we assume that "target is to the east of spotter" means it's more
+  # east than north/south (i.e. between 45° and 135°), or else they would've
+  # said "target is to the north/south of spotter" instead.
+  #
+  # If we ever need a literal "target is somewhere to the east" operator (any
+  # angle between 0° and 180°), that will be a separate command with a (much
+  # simpler) geometry calculation.
+
   @sql """
   (WITH config AS (
       SELECT 
           ?::double precision AS angle_x,
           ?::double precision AS angle_y,
-          25000 AS max_dist
+          30000 AS max_dist
   ),
   triangle AS (
       -- Triangle wedge from X to Y degrees, starting at origin:
