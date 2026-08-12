@@ -286,7 +286,6 @@ defmodule Boom.Scene.Home do
       colour = pick_colour(name)
       draw_polygon(gr, geometry, zoom, fill: colour, stroke: {2, brighter(colour)})
     end)
-    |> IO.inspect(limit: :infinity)
   end
 
   defp transform_map(%Graph{} = graph, {_, _} = offset) do

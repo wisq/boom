@@ -8,16 +8,24 @@ defmodule Boom.Command do
     target: nil
   )
 
-  import Boom.ObjectRegistry, only: [is_object_name: 1]
+  import Boom.ObjectRegistry, only: [is_object_name: 1, is_geom_error: 1]
   alias __MODULE__
   alias Boom.Grid.Block
+  alias Boom.ObjectRegistry
 
   def get_origin_version(%Command{origin: %Block{}}), do: 1
 
   def get_origin_version(%Command{origin: name}) when is_object_name(name),
-    do: Boom.ObjectRegistry.version(name)
+    do: ObjectRegistry.version(name)
 
-  def build_geometry(%Command{type: module} = command) do
-    module.build_geometry(command)
+  def build_geometry(%Command{type: module, origin: %Block{geometry: geom}} = command) do
+    module.build_geometry(command, geom)
+  end
+
+  def build_geometry(%Command{type: module, origin: name} = command) when is_object_name(name) do
+    case ObjectRegistry.geometry(name) do
+      err when is_geom_error(err) -> err
+      geom when is_struct(geom) -> module.build_geometry(command, geom)
+    end
   end
 end

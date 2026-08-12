@@ -14,5 +14,5 @@ defmodule Boom.Command.At do
     }
   end
 
-  def build_geometry(%Command{type: __MODULE__, origin: %Block{geometry: geom}}), do: geom
+  def build_geometry(%Command{type: __MODULE__}, geom), do: geom
 end

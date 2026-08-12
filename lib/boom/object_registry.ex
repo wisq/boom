@@ -2,8 +2,9 @@ defmodule Boom.ObjectRegistry do
   @special_names [:ownship]
   defguard is_object_name(name) when is_binary(name) or name in @special_names
 
-  @special_geoms [:pending, :unknown, :disjoint]
-  defguard is_geometry(geom) when is_struct(geom) or geom in @special_geoms
+  @geom_errors [:pending, :unknown, :disjoint]
+  defguard is_geom_error(err) when err in @geom_errors
+  defguard is_geometry(geom) when is_struct(geom) or is_geom_error(geom)
 
   def child_spec(opts) do
     Registry.child_spec(opts ++ [name: __MODULE__, keys: :unique])
