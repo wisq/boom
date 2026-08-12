@@ -27,7 +27,8 @@ defmodule Boom.MixProject do
       {:scenic_driver_local, "~> 0.11"},
       {:ecto_sql, "~> 3.0"},
       {:geo_postgis, "~> 3.7"},
-      {:pubsub, "~> 1.1"}
+      {:pubsub, "~> 1.1"},
+      {:nimble_parsec, "~> 1.4"}
     ]
   end
 end
