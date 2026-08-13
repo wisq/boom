@@ -28,7 +28,8 @@ defmodule Boom.MixProject do
       {:ecto_sql, "~> 3.0"},
       {:geo_postgis, "~> 3.7"},
       {:pubsub, "~> 1.1"},
-      {:nimble_parsec, "~> 1.4"}
+      {:nimble_parsec, "~> 1.4"},
+      {:jason, "~> 1.4"}
     ]
   end
 end
