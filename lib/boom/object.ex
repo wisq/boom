@@ -124,11 +124,17 @@ defmodule Boom.Object do
   end
 
   @impl true
+  def handle_info({:object_updated, _}, state), do: {:noreply, state}
+
+  @impl true
   def handle_info({:command_added, name}, %State{name: name} = state) do
     Logger.debug(log_prefix(state) <> "Recalculating due to added command")
     send(self(), :recalculate)
     {:noreply, state}
   end
+
+  @impl true
+  def handle_info({:command_added, _}, state), do: {:noreply, state}
 
   defp with_cache(commands, cache) do
     commands
