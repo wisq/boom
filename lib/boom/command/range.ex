@@ -18,7 +18,7 @@ defmodule Boom.Command.Range do
   end
 
   import Ecto.Query, only: [from: 2]
-  alias Boom.GeoEngine
+  alias Boom.DB.Repo
 
   def build_geometry(%Command{type: __MODULE__, params: {range, error}}, geom) do
     min_range = range - error
@@ -33,7 +33,7 @@ defmodule Boom.Command.Range do
       ),
       select: fragment("geom")
     )
-    |> GeoEngine.one()
+    |> Repo.one()
   end
 
   def command_text(%Command{

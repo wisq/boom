@@ -1,4 +1,4 @@
-defmodule Boom.GeoEngine.Migrations.RangeRing do
+defmodule Boom.DB.Repo.Migrations.RangeRing do
   use Ecto.Migration
 
   @sql """

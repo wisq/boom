@@ -1,11 +1,7 @@
-defmodule Boom.GeoEngine do
-  use Ecto.Repo,
-    otp_app: :boom,
-    adapter: Ecto.Adapters.Postgres
-
+defmodule Boom.DB.GeoEngine do
   import Ecto.Query, only: [from: 2]
 
-  alias __MODULE__, as: Repo
+  alias Boom.DB.Repo
 
   def intersection(geom_a, geom_b) do
     from(

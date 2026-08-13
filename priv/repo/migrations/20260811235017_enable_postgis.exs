@@ -1,4 +1,4 @@
-defmodule Boom.GeoEngine.Migrations.EnablePostgis do
+defmodule Boom.DB.Repo.Migrations.EnablePostgis do
   use Ecto.Migration
 
   def up do

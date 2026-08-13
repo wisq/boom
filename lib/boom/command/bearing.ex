@@ -18,7 +18,7 @@ defmodule Boom.Command.Bearing do
   end
 
   import Ecto.Query, only: [from: 2]
-  alias Boom.GeoEngine, as: Repo
+  alias Boom.DB.Repo
 
   # max_dist of 30km is chosen to ensure that even a 45°-error (i.e.
   # right-angled) triangle will always extend off one of the sides of the map,

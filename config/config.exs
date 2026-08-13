@@ -20,9 +20,9 @@ config :boom, :viewport,
     ]
   ]
 
-config :boom, ecto_repos: [Boom.GeoEngine]
+config :boom, ecto_repos: [Boom.DB.Repo]
 
-config :boom, Boom.GeoEngine,
+config :boom, Boom.DB.Repo,
   database: "boom",
   hostname: "localhost",
   port: "5432",

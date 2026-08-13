@@ -6,7 +6,7 @@ defmodule Boom.Object do
   alias Boom.Command
   alias Boom.CommandLog
   alias Boom.Grid
-  alias Boom.GeoEngine
+  alias Boom.DB.GeoEngine
   import Boom.ObjectRegistry, only: [is_object_name: 1]
 
   defmodule State do

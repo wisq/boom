@@ -401,7 +401,7 @@ defmodule Boom.Scene.Home do
 
   defp draw_polygon(graph, geometry, zoom, opts) do
     geometry
-    |> Boom.GeoEngine.split_multipolygon()
+    |> Boom.DB.GeoEngine.split_multipolygon()
     |> Enum.flat_map(&geo_inner_outer_coords/1)
     |> Enum.reduce(graph, fn
       {:outer, geom}, gr ->

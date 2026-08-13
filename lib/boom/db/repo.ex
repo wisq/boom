@@ -1,0 +1,5 @@
+defmodule Boom.DB.Repo do
+  use Ecto.Repo,
+    otp_app: :boom,
+    adapter: Ecto.Adapters.Postgres
+end
