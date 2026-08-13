@@ -25,7 +25,7 @@ defmodule Boom.Server do
 
     case :gen_tcp.listen(port, opts) do
       {:ok, socket} ->
-        Logger.info(@log_prefix <> "Listening on #{desc}")
+        Logger.info(@log_prefix <> "Listening on #{desc}.")
         send(self(), :accept)
         {:ok, socket}
 
@@ -54,5 +54,27 @@ defmodule Boom.Server do
 
     opts = [:local, {:ifaddr, {:local, path}} | @listen_opts]
     {0, opts, "Unix domain socket at #{path}"}
+  end
+
+  defp listen_opts({:tcp6, addr, port}) do
+    opts = [:inet6, {:ifaddr, addr} | @listen_opts]
+    {port, opts, "IPv6 TCP at #{hostname(addr, 6)} port #{port}"}
+  end
+
+  defp listen_opts({:tcp4, addr, port}) do
+    opts = [:inet, {:ifaddr, addr} | @listen_opts]
+    {port, opts, "IPv4 TCP at #{hostname(addr, 4)}:#{port}"}
+  end
+
+  defp hostname(:any, 6), do: "::"
+  defp hostname(:any, 4), do: "0.0.0.0"
+  defp hostname(:loopback, 6), do: "::1"
+  defp hostname(:loopback, 4), do: "127.0.0.1"
+
+  defp hostname(addr, _) when is_tuple(addr) do
+    case :inet.ntoa(addr) do
+      a when is_list(a) -> to_string(a)
+      {:error, :einval} -> inspect(addr)
+    end
   end
 end

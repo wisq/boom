@@ -87,10 +87,10 @@ defmodule Boom do
 
   defp fallback_listen_tcp do
     # Check if IPv6 is available.
-    with {:ok, ip6_lo} <- :inet.getaddr(~c'localhost', :inet6) do
-      {:tcp, ip6_lo, 2666}
+    with {:ok, _} <- :inet.getaddr(~c'localhost', :inet6) do
+      {:tcp6, :loopback, 2666}
     else
-      {:error, _} -> {:tcp, {127, 0, 0, 1}, 2666}
+      {:error, _} -> {:tcp4, :loopback, 2666}
     end
   end
 

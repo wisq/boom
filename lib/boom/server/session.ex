@@ -75,6 +75,13 @@ defmodule Boom.Server.Session do
 
   defp describe_peer({:local, _}, {:local, path}) when is_binary(path), do: path
 
+  defp describe_peer({addr, port}, _) do
+    cond do
+      :inet.is_ipv6_address(addr) -> "#{:inet.ntoa(addr)} port #{port}"
+      :inet.is_ipv4_address(addr) -> "#{:inet.ntoa(addr)}:#{port}"
+    end
+  end
+
   defp generate_banner do
     object_count = Boom.ObjectRegistry.count()
     command_count = Boom.CommandLog.count_all()
