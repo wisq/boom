@@ -35,4 +35,16 @@ defmodule Boom.Command.Range do
     )
     |> GeoEngine.one()
   end
+
+  def command_text(%Command{
+        type: __MODULE__,
+        target: target,
+        params: {range, error},
+        origin: origin
+      }) do
+    "#{target} is range #{range / 1000}km ± #{error}m from #{origin_text(origin)}"
+  end
+
+  defp origin_text(%Block{name: name}), do: name
+  defp origin_text(name) when is_object_name(name), do: name
 end

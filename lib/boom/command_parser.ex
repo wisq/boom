@@ -18,6 +18,7 @@ defmodule Boom.CommandParser do
       {name, ["is", "in" | rest]} -> parse_object(name) |> parse_at(rest)
       {name, ["is", "bearing" | rest]} -> parse_object(name) |> parse_bearing(:degrees, rest)
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
+      {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
       _ -> :fail
     end
   end
@@ -45,6 +46,14 @@ defmodule Boom.CommandParser do
          {:ok, bearing, error} <- parse_direction(type, direction),
          origin <- parse_object(origin) do
       Command.Bearing.new(bearing, error, origin, target)
+    end
+  end
+
+  defp parse_range(target, rest) do
+    with {range, ["from" | origin]} <- lookahead(rest, "from"),
+         {:ok, range, error} <- parse_range(range),
+         origin <- parse_object(origin) do
+      Command.Range.new(range, error, origin, target)
     end
   end
 
@@ -93,6 +102,35 @@ defmodule Boom.CommandParser do
       {:ok, bearing, error}
     else
       nil -> {:error, :invalid_bearing, string}
+    end
+  end
+
+  @range_regex ~r/^
+    ([0-9]+)      # integer units
+    (?:           # decimal is optional
+      [., ]       # we allow a variety of separators
+      ([0-9]+)    # decimal places
+    )?
+    \s?
+    (k?m|(?:kilo)?met(?:re|er)s?)?   # optional units
+    \s*(.*)       # log and ignore other junk
+  $/x
+
+  defp parse_range(words) do
+    string = Enum.join(words, " ")
+
+    with [_, integer, decimal, units, junk] <- Regex.run(@range_regex, string) do
+      error = 0.5 * 10 ** -String.length(decimal)
+      range = String.to_float("#{integer}.#{decimal}0")
+      unless junk == "", do: Logger.debug("Ignoring junk after range: #{inspect(junk)}")
+
+      case units do
+        "m" <> _ -> {:ok, range, error}
+        "k" <> _ -> {:ok, range * 1000, error * 1000}
+        "" -> {:ok, range * 1000, error * 1000}
+      end
+    else
+      nil -> {:error, :invalid_range, string}
     end
   end
 end
