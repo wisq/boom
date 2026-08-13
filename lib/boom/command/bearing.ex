@@ -70,4 +70,39 @@ defmodule Boom.Command.Bearing do
     )
     |> Repo.one()
   end
+
+  def command_text(%Command{
+        type: __MODULE__,
+        target: target,
+        params: {bearing, error},
+        origin: origin
+      }) do
+    "#{target} is #{direction_text(bearing, error)} from #{origin_text(origin)}"
+  end
+
+  defp direction_text(+0.0, 45.0), do: "due north"
+  defp direction_text(90.0, 45.0), do: "due east"
+  defp direction_text(180.0, 45.0), do: "due south"
+  defp direction_text(270.0, 45.0), do: "due west"
+
+  defp direction_text(45.0, 22.5), do: "due northeast"
+  defp direction_text(135.0, 22.5), do: "due southeast"
+  defp direction_text(225.0, 22.5), do: "due southwest"
+  defp direction_text(315.0, 22.5), do: "due northwest"
+
+  defp direction_text(22.5, 11.25), do: "due north-northeast"
+  defp direction_text(67.5, 11.25), do: "due east-northeast"
+  defp direction_text(112.5, 11.25), do: "due east-southeast"
+  defp direction_text(157.5, 11.25), do: "due south-southeast"
+  defp direction_text(202.5, 11.25), do: "due south-southwest"
+  defp direction_text(247.5, 11.25), do: "due west-southwest"
+  defp direction_text(292.5, 11.25), do: "due west-northwest"
+  defp direction_text(337.5, 11.25), do: "due north-northwest"
+
+  defp direction_text(bearing, error) do
+    "bearing #{bearing}° ± #{error}°"
+  end
+
+  defp origin_text(%Block{name: name}), do: name
+  defp origin_text(name) when is_object_name(name), do: name
 end

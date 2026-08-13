@@ -37,6 +37,7 @@ defmodule Boom.Scene.Home do
   alias Scenic.Primitives, as: P
   alias Boom.Grid
   alias Boom.Grid.Block
+  import Boom.ObjectRegistry, only: [is_geom_error: 1]
 
   {grid_width, grid_height} = Grid.grid_size()
   @grid_width grid_width
@@ -79,6 +80,7 @@ defmodule Boom.Scene.Home do
     }
 
     :ok = request_input(scene, [:cursor_pos, :cursor_button, :cursor_scroll, :viewport])
+    PubSub.subscribe(self(), :object_registry)
     {:ok, scene |> assign(:state, state) |> queue_render()}
   end
 
@@ -218,6 +220,13 @@ defmodule Boom.Scene.Home do
     new_offset = {new_offset_x, new_offset_y}
 
     state = %State{state | offset: new_offset, current_zoom: new_zoom, zoom_pending: false}
+    {:noreply, scene |> assign(:state, state) |> queue_render()}
+  end
+
+  @impl true
+  def handle_info({:object_updated, _}, %Scene{assigns: %{state: %State{} = state}} = scene) do
+    # Force a re-render.
+    state = %State{state | last_zoom: nil}
     {:noreply, scene |> assign(:state, state) |> queue_render()}
   end
 
@@ -384,6 +393,8 @@ defmodule Boom.Scene.Home do
   end
 
   defp brighter({:color_hsl, {hue, _, _}}), do: {:color_hsl, {hue, 100.0, 90.0}}
+
+  defp draw_polygon(graph, err, _, _) when is_geom_error(err), do: graph
 
   defp draw_polygon(graph, geometry, zoom, opts) do
     geometry

@@ -28,4 +28,10 @@ defmodule Boom.Command do
       geom when is_struct(geom) -> module.build_geometry(command, geom)
     end
   end
+
+  defimpl String.Chars do
+    def to_string(%Command{id: id, type: module} = command) do
+      "#{inspect(id)}: #{module.command_text(command)}"
+    end
+  end
 end

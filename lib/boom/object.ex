@@ -69,6 +69,7 @@ defmodule Boom.Object do
   def init(name) do
     with {:ok, _} <- ObjectRegistry.register(name) do
       PubSub.subscribe(self(), :object_registry)
+      PubSub.subscribe(self(), :command_log)
       send(self(), :recalculate)
       {:ok, %State{name: name}}
     end
@@ -112,12 +113,20 @@ defmodule Boom.Object do
   @impl true
   def handle_info({:object_updated, name}, %State{name: name} = state), do: {:noreply, state}
 
+  @impl true
   def handle_info({:object_updated, name}, %State{depends_on: deps} = state) do
     if name in deps do
       Logger.debug(log_prefix(state) <> "Recalculating due to object #{inspect(name)} change")
       send(self(), :recalculate)
     end
 
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:command_added, name}, %State{name: name} = state) do
+    Logger.debug(log_prefix(state) <> "Recalculating due to added command")
+    send(self(), :recalculate)
     {:noreply, state}
   end
 

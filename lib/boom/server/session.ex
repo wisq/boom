@@ -2,6 +2,8 @@ defmodule Boom.Server.Session do
   use GenServer
   require Logger
 
+  alias Boom.{Command, CommandLog, CommandParser}
+
   defmodule State do
     @enforce_keys [:id, :port, :peer, :log_prefix]
     defstruct(@enforce_keys)
@@ -43,6 +45,8 @@ defmodule Boom.Server.Session do
   def handle_info({:tcp, port, json}, %State{port: port, log_prefix: log_prefix} = state) do
     %{"type" => "cmd", "text" => cmd} = Jason.decode!(json)
     Logger.debug(log_prefix <> "Command: #{inspect(cmd)}")
+
+    run_command(cmd)
     {:noreply, state}
   end
 
@@ -99,5 +103,20 @@ defmodule Boom.Server.Session do
       "Ready for input ..."
     ]
     |> IO.iodata_to_binary()
+  end
+
+  defp run_command(command) do
+    case CommandParser.parse(command) do
+      %Command{} = command -> CommandLog.add(command)
+      other -> other
+    end
+    |> inspect(pretty: true)
+    |> output()
+  end
+
+  defp output(iodata) when is_binary(iodata) or is_list(iodata) do
+    iodata
+    |> IO.iodata_to_binary()
+    |> then(&send(self(), {:output, &1}))
   end
 end

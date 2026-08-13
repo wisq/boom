@@ -6,8 +6,8 @@ defmodule Boom.CommandParser do
 
   alias Boom.CommandParser.Compass
 
-  def parse(line) do
-    line
+  def parse(cmd) do
+    cmd
     |> String.split()
     |> parse_words()
   end
@@ -34,23 +34,31 @@ defmodule Boom.CommandParser do
     end
   end
 
-  defp parse_at(name, sector) do
+  defp parse_at(target, sector) do
     with {:ok, %Block{} = block} = parse_block(sector) do
-      Command.At.new(block, name)
+      Command.At.new(block, target)
     end
   end
 
-  defp parse_bearing(name, type, rest) when type in [:degrees, :compass] do
+  defp parse_bearing(target, type, rest) when type in [:degrees, :compass] do
     with {direction, ["from" | origin]} <- lookahead(rest, "from"),
          {:ok, bearing, error} <- parse_direction(type, direction),
          origin <- parse_object(origin) do
-      IO.inspect({:bearing, name, bearing, error, origin})
+      Command.Bearing.new(bearing, error, origin, target)
     end
   end
 
   defp parse_object(["iron", "nest"]), do: :ownship
   defp parse_object(["nest"]), do: :ownship
-  defp parse_object(other), do: Enum.join(other, " ")
+
+  defp parse_object(words) do
+    name = Enum.join(words, " ")
+
+    case Grid.block_by_name(name) do
+      {:ok, %Block{} = block} -> block
+      :error -> name
+    end
+  end
 
   defp parse_block(words) do
     name = words |> Enum.join(" ")

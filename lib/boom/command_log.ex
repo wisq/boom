@@ -48,7 +48,17 @@ defmodule Boom.CommandLog do
   end
 
   def add(%Command{} = command, pid \\ __MODULE__) do
-    GenServer.call(pid, {:add, command})
+    {:ok, %Command{target: target} = command} = GenServer.call(pid, {:add, command})
+
+    Boom.output([
+      IO.ANSI.light_green(),
+      to_string(command),
+      IO.ANSI.normal()
+    ])
+
+    PubSub.publish(:command_log, {:command_added, target})
+    Boom.ObjectSupervisor.ensure_started(target)
+    command
   end
 
   @impl true
@@ -68,6 +78,6 @@ defmodule Boom.CommandLog do
     entries = [command | entries(target, ets)]
 
     :ets.insert(ets, [{target, entries}])
-    {:reply, :ok, %State{state | next_id: next_id + 1}}
+    {:reply, {:ok, command}, %State{state | next_id: next_id + 1}}
   end
 end

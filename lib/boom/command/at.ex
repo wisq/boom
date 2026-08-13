@@ -15,4 +15,7 @@ defmodule Boom.Command.At do
   end
 
   def build_geometry(%Command{type: __MODULE__}, geom), do: geom
+
+  def command_text(%Command{type: __MODULE__, target: target, origin: %Block{name: block}}),
+    do: "#{target} is at #{block}"
 end
