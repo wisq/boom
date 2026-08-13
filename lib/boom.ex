@@ -25,6 +25,11 @@ defmodule Boom do
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 
+  def output(iodata) when is_binary(iodata) or is_list(iodata) do
+    text = IO.iodata_to_binary(iodata)
+    PubSub.publish(:sessions, {:output, text})
+  end
+
   def save_viewport_size({width, height}) do
     viewport_size_file()
     |> File.write!("#{width}:#{height}")

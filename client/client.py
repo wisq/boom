@@ -40,6 +40,30 @@ DEFAULT_SOCKETS = [
     f"/tmp/boom-{user_id}/socket"
 ]
 
+
+async def read_banner(reader: asyncio.StreamReader) -> None:
+    """Block until the server's welcome message arrives, then print it.
+
+    This runs before the prompt loop starts, so there's no in-progress
+    input line to protect yet -- a plain readline() + print is enough,
+    no patch_stdout() gymnastics required for this one message.
+    """
+    raw = await reader.readline()
+    if not raw:
+        raise ConnectionError("server closed the connection before sending a banner")
+
+    line = raw.decode("utf-8", errors="replace").rstrip("\n")
+    if not line:
+        return
+
+    try:
+        msg = json.loads(line)
+    except json.JSONDecodeError:
+        msg = {"text": line}
+
+    print_formatted_text(ANSI(msg.get("text", "")))
+
+
 async def reader_loop(reader: asyncio.StreamReader) -> None:
     """Read JSON-lines messages from the server and print them safely.
 
@@ -110,6 +134,22 @@ async def main_async(args: argparse.Namespace) -> None:
     session = PromptSession(history=FileHistory(str(args.history_file)))
 
     with patch_stdout():
+        if args.banner_timeout > 0:
+            try:
+                await asyncio.wait_for(read_banner(reader), timeout=args.banner_timeout)
+            except asyncio.TimeoutError:
+                print_formatted_text(
+                    ANSI(
+                        f"\x1b[33m[no welcome banner after "
+                        f"{args.banner_timeout:.0f}s, continuing anyway]\x1b[0m"
+                    )
+                )
+            except ConnectionError as e:
+                print_formatted_text(f"Could not connect: {e}")
+                writer.close()
+                await writer.wait_closed()
+                return
+
         reader_task = asyncio.create_task(reader_loop(reader))
         writer_task = asyncio.create_task(writer_loop(writer, session))
 
@@ -138,6 +178,17 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_HISTORY_FILE,
         help="Where to persist command history (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--banner-timeout",
+        type=float,
+        default=5.0,
+        metavar="SECONDS",
+        help=(
+            "How long to wait for the server's welcome banner before the "
+            "first prompt is shown anyway. 0 disables the wait entirely "
+            "(default: %(default)s)"
+        ),
     )
     return parser.parse_args()
 
