@@ -28,3 +28,5 @@ foo-*.tar
 *.secrets.exs
 
 /client/vendor
+/priv/__scenic
+/priv/viewport_size.txt
