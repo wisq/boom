@@ -40,6 +40,8 @@ defmodule Boom.ObjectRegistry do
     |> Enum.map(fn {name, {_version, geometry}} -> {name, geometry} end)
   end
 
+  def count, do: Registry.count(__MODULE__)
+
   defp lookup(name) when is_object_name(name) do
     case Registry.lookup(__MODULE__, String.downcase(name)) do
       [{pid, {version, geometry}}] -> {pid, version, geometry}

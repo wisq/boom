@@ -37,6 +37,16 @@ defmodule Boom.CommandLog do
     end)
   end
 
+  def count_all(ets \\ @ets) do
+    :ets.foldl(
+      fn {_, entries}, acc ->
+        acc + Enum.count(entries)
+      end,
+      0,
+      ets
+    )
+  end
+
   def add(%Command{} = command, pid \\ __MODULE__) do
     GenServer.call(pid, {:add, command})
   end

@@ -17,6 +17,8 @@ defmodule Boom do
       Boom.CommandLog,
       Boom.ObjectRegistry,
       Boom.ObjectSupervisor,
+      Boom.Server.SessionSupervisor,
+      {Boom.Server, listen_on: listen_config()},
       {Scenic, [main_viewport_config]}
     ]
 
@@ -43,5 +45,53 @@ defmodule Boom do
     else
       _ -> config
     end
+  end
+
+  defp listen_config do
+    case Application.get_env(:boom, :listen_on, :guess) do
+      {:unix, _} = unix -> unix
+      {:tcp, _, _} = tcp -> tcp
+      :guess -> guess_listen_config()
+    end
+  end
+
+  defp guess_listen_config do
+    uid = get_uid()
+
+    try_listen_unix("/run/user/#{uid}", "boom", uid) ||
+      try_listen_unix("/tmp", "boom-#{uid}", uid) ||
+      fallback_listen_tcp()
+  end
+
+  defp try_listen_unix(root, dir, my_uid) do
+    path = Path.join(root, dir)
+
+    with true <- File.dir?(root),
+         :ok <- File.mkdir_p(path) do
+      %File.Stat{uid: uid, mode: mode} = File.stat!(path)
+      if uid != my_uid, do: raise("Not owned by you: #{inspect(path)}")
+
+      new_mode = Bitwise.band(mode, 0o700)
+      if new_mode != mode, do: File.chmod!(path, new_mode)
+
+      {:unix, Path.join(path, "socket")}
+    else
+      _ -> nil
+    end
+  end
+
+  defp fallback_listen_tcp do
+    # Check if IPv6 is available.
+    with {:ok, ip6_lo} <- :inet.getaddr(~c'localhost', :inet6) do
+      {:tcp, ip6_lo, 2666}
+    else
+      {:error, _} -> {:tcp, {127, 0, 0, 1}, 2666}
+    end
+  end
+
+  defp get_uid do
+    {output, 0} = System.cmd("id", ["-u"])
+    {uid, "\n"} = Integer.parse(output)
+    uid
   end
 end
