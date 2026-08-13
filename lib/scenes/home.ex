@@ -56,8 +56,10 @@ defmodule Boom.Scene.Home do
     |> Enum.uniq()
   end
 
-  @major_grid_lines Grid.sectors() |> then(lines_from_blocks)
-  @minor_grid_lines Grid.subdivisions() |> then(lines_from_blocks)
+  sectors = Grid.build_sectors()
+  subdivisions = Grid.build_subdivisions(sectors)
+  @major_grid_lines lines_from_blocks.(sectors)
+  @minor_grid_lines lines_from_blocks.(subdivisions)
 
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}

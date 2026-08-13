@@ -13,6 +13,7 @@ defmodule Boom do
     # start the application with the viewport
     children = [
       PubSub,
+      Boom.Grid,
       Boom.GeoEngine,
       Boom.CommandLog,
       Boom.ObjectRegistry,
