@@ -1,24 +1,26 @@
 defmodule Boom.Grid do
-  use GenServer
   alias Boom.Grid.Block
 
-  @globals __MODULE__.ETS.Globals
-  @subs_by_extent __MODULE__.ETS.SubsByExtent
-  @blocks_by_name __MODULE__.ETS.BlocksByName
+  @sectors __MODULE__.Sectors
+  @subdivisions __MODULE__.Subdivisions
+  @grid_geometry __MODULE__.GridGeometry
+  @subs_by_extent __MODULE__.SubsByExtent
+  @blocks_by_name __MODULE__.BlocksByName
 
-  def start_link(opts) do
-    opts = Keyword.put_new(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, nil, opts)
+  def init do
+    unless :persistent_term.get(__MODULE__, nil) == :loaded, do: build()
   end
 
-  @impl true
-  def init(nil) do
-    :ets.new(@globals, [:set, :protected, :named_table, read_concurrency: true])
-    :ets.new(@subs_by_extent, [:set, :protected, :named_table, read_concurrency: true])
-    :ets.new(@blocks_by_name, [:set, :protected, :named_table, read_concurrency: true])
+  def build do
+    sectors =
+      Block.major_coords()
+      |> Enum.map(&Block.major/1)
 
-    sectors = build_sectors()
-    subdivisions = build_subdivisions(sectors)
+    subdivisions =
+      sectors
+      |> Enum.flat_map(fn sector ->
+        Block.minor_coords() |> Enum.map(&Block.minor(sector, &1))
+      end)
 
     {corner1, corner2} =
       sectors
@@ -27,59 +29,29 @@ defmodule Boom.Grid do
 
     grid_geometry = Block.square(corner1, corner2)
 
-    blocks_by_name = Enum.map(sectors ++ subdivisions, &{&1.name, &1})
+    blocks_by_name = Map.new(sectors ++ subdivisions, &{&1.name, &1})
 
     subs_by_extent =
-      Enum.map(subdivisions, fn %Block{extents: {x..x//_, y..y//_}} = block ->
+      Map.new(subdivisions, fn %Block{extents: {x..x//_, y..y//_}} = block ->
         {{x, y}, block}
       end)
 
-    :ets.insert(@globals,
-      sectors: sectors,
-      subdivisions: subdivisions,
-      grid_geometry: grid_geometry
-    )
-
-    :ets.insert(@subs_by_extent, subs_by_extent)
-    :ets.insert(@blocks_by_name, blocks_by_name)
-    {:ok, nil}
+    :persistent_term.put(@sectors, sectors)
+    :persistent_term.put(@subdivisions, subdivisions)
+    :persistent_term.put(@grid_geometry, grid_geometry)
+    :persistent_term.put(@subs_by_extent, subs_by_extent)
+    :persistent_term.put(@blocks_by_name, blocks_by_name)
+    :persistent_term.put(__MODULE__, :loaded)
+    :ok
   end
 
-  def sectors, do: global(:sectors)
-  def subdivisions, do: global(:subdivision)
-  def grid_geometry, do: global(:grid_geometry)
+  def sectors, do: :persistent_term.get(@sectors)
+  def subdivisions, do: :persistent_term.get(@subdivisions)
+  def grid_geometry, do: :persistent_term.get(@grid_geometry)
   defdelegate grid_size, to: Block
 
-  def subdivision_at(x, y) do
-    case :ets.lookup(@subs_by_extent, {x, y}) do
-      [{{^x, ^y}, block}] -> {:ok, block}
-      [] -> :error
-    end
-  end
+  def subdivision_at(x, y), do: :persistent_term.get(@subs_by_extent) |> Map.fetch({x, y})
 
-  def block_by_name(name) do
-    name = String.upcase(name)
-
-    case :ets.lookup(@blocks_by_name, name) do
-      [{^name, block}] -> {:ok, block}
-      [] -> :error
-    end
-  end
-
-  def build_sectors do
-    Block.major_coords()
-    |> Enum.map(&Block.major/1)
-  end
-
-  def build_subdivisions(sectors) do
-    sectors
-    |> Enum.flat_map(fn sector ->
-      Block.minor_coords() |> Enum.map(&Block.minor(sector, &1))
-    end)
-  end
-
-  defp global(key) do
-    [{^key, value}] = :ets.lookup(@globals, key)
-    value
-  end
+  def block_by_name(name),
+    do: :persistent_term.get(@blocks_by_name) |> Map.fetch(String.upcase(name))
 end
