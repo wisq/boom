@@ -27,22 +27,11 @@ defmodule Boom.DB.Repo.Migrations.PopulateSectors do
   end
 
   defp square(x, y) do
-    {x1, y1} = grid_to_geo_coord(x, y)
-    {x2, y2} = grid_to_geo_coord(x + 1, y + 1)
-
-    %Geo.Polygon{
-      coordinates: [
-        [
-          {x1, y1},
-          {x1, y2},
-          {x2, y2},
-          {x2, y1},
-          {x1, y1}
-        ]
-      ]
-    }
+    Boom.Grid.Block.square(
+      grid_to_geo_coord(x, y),
+      grid_to_geo_coord(x + 1, y + 1)
+    )
   end
-
   defp grid_to_geo_coord(x, y) do
     {
       x * @geometry_scale,

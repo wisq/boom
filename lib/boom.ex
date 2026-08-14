@@ -10,12 +10,11 @@ defmodule Boom do
       Application.get_env(:boom, :viewport)
       |> load_viewport_size()
 
-    Boom.Grid.init()
-
     # start the application with the viewport
     children = [
       PubSub,
       Boom.DB.Repo,
+      Boom.Grid,
       Boom.CommandLog,
       Boom.ObjectRegistry,
       Boom.ObjectSupervisor,

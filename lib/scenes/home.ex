@@ -39,29 +39,6 @@ defmodule Boom.Scene.Home do
   alias Boom.Grid.Block
   import Boom.ObjectRegistry, only: [is_geom_error: 1]
 
-  {grid_width, grid_height} = Grid.grid_size()
-  @grid_width grid_width
-  @grid_height grid_height
-
-  lines_from_blocks = fn blocks ->
-    blocks
-    |> Enum.flat_map(fn %Block{extents: {min_x..max_x//_, min_y..max_y//_}} ->
-      [
-        {:vertical, min_x},
-        {:vertical, max_x + 1},
-        {:horizontal, min_y},
-        {:horizontal, max_y + 1}
-      ]
-    end)
-    |> Enum.uniq()
-  end
-
-  Grid.init()
-  sectors = Grid.sectors()
-  subdivisions = Grid.subdivisions()
-  @major_grid_lines lines_from_blocks.(sectors)
-  @minor_grid_lines lines_from_blocks.(subdivisions)
-
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
@@ -76,6 +53,8 @@ defmodule Boom.Scene.Home do
   def init(%Scene{} = scene, _param, _opts) do
     size = scene.viewport.size
     zoom = minimum_zoom_level(size)
+
+    build_lines()
 
     state = %State{
       min_zoom: zoom,
@@ -234,17 +213,18 @@ defmodule Boom.Scene.Home do
   end
 
   defp rebuild_graph(%State{} = state) do
+    {grid_width, grid_height} = Grid.grid_size()
     zoom = state.current_zoom || state.min_zoom
-    width = @grid_width * zoom + 1
-    height = @grid_height * zoom + 1
+    width = grid_width * zoom + 1
+    height = grid_height * zoom + 1
 
     graph =
       Graph.build(font: :roboto, font_size: 20)
       |> P.group(
         fn g ->
           g
-          |> draw_lines(:minor, @minor_grid_lines, @minor_line_stroke, zoom, width, height)
-          |> draw_lines(:major, @major_grid_lines, @major_line_stroke, zoom, width, height)
+          |> draw_lines(:minor, minor_grid_lines(), @minor_line_stroke, zoom, width, height)
+          |> draw_lines(:major, major_grid_lines(), @major_line_stroke, zoom, width, height)
           |> label_sectors(zoom)
           |> draw_object_geometries(zoom)
         end,
@@ -363,9 +343,10 @@ defmodule Boom.Scene.Home do
   # Determine the lowest zoomlevel (pixels per minor grid line)
   # where the entire grid (plus @min_padding) fits within the window.
   defp minimum_zoom_level({width, height}) do
+    {grid_width, grid_height} = Grid.grid_size()
     # The +1 accounts for the final grid line in each direction.
-    by_width = div(width - 1 - @min_padding, @grid_width)
-    by_height = div(height - 1 - @min_padding, @grid_height)
+    by_width = div(width - 1 - @min_padding, grid_width)
+    by_height = div(height - 1 - @min_padding, grid_height)
     min(by_width, by_height)
   end
 
@@ -436,5 +417,29 @@ defmodule Boom.Scene.Home do
       {:line_to, x * zoom, y * zoom}
       | coords_to_path_rest(rest, zoom)
     ]
+  end
+
+  @major_grid_lines __MODULE__.MajorGridLines
+  @minor_grid_lines __MODULE__.MinorGridLines
+
+  defp major_grid_lines, do: :persistent_term.get(@major_grid_lines)
+  defp minor_grid_lines, do: :persistent_term.get(@minor_grid_lines)
+
+  defp build_lines do
+    :persistent_term.put(@major_grid_lines, Grid.sectors() |> lines_from_blocks())
+    :persistent_term.put(@minor_grid_lines, Grid.subdivisions() |> lines_from_blocks())
+  end
+
+  defp lines_from_blocks(blocks) do
+    blocks
+    |> Enum.flat_map(fn %Block{extents: {min_x..max_x//_, min_y..max_y//_}} ->
+      [
+        {:vertical, min_x},
+        {:vertical, max_x + 1},
+        {:horizontal, min_y},
+        {:horizontal, max_y + 1}
+      ]
+    end)
+    |> Enum.uniq()
   end
 end

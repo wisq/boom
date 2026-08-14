@@ -1,26 +1,45 @@
 defmodule Boom.Grid do
+  use GenServer
+  alias Boom.DB
   alias Boom.Grid.Block
+  import Ecto.Query, only: [from: 2]
 
   @sectors __MODULE__.Sectors
   @subdivisions __MODULE__.Subdivisions
+  @grid_size __MODULE__.GridSize
   @grid_geometry __MODULE__.GridGeometry
+  @geometry_scale __MODULE__.GeometryScale
   @subs_by_extent __MODULE__.SubsByExtent
   @blocks_by_name __MODULE__.BlocksByName
 
-  def init do
-    unless :persistent_term.get(__MODULE__, nil) == :loaded, do: build()
+  def start_link(opts) do
+    opts = Keyword.put_new(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, nil, opts)
   end
 
-  def build do
-    sectors =
-      Block.major_coords()
-      |> Enum.map(&Block.major/1)
-
-    subdivisions =
-      sectors
-      |> Enum.flat_map(fn sector ->
-        Block.minor_coords() |> Enum.map(&Block.minor(sector, &1))
+  @impl true
+  def init(_) do
+    {sectors, subdivisions} =
+      from(s in DB.Sector, order_by: [desc: s.x, desc: s.y], preload: :subdivisions)
+      |> DB.Repo.all()
+      |> Enum.reduce({[], []}, fn s, {sec_acc, subs_acc} ->
+        {sec, subs} = Block.from_db(s)
+        {[sec | sec_acc], subs ++ subs_acc}
       end)
+
+    grid_size =
+      from(s in DB.Subdivision, select: {max(s.global_x) + 1, max(s.global_y) + 1})
+      |> DB.Repo.one()
+
+    {geometry_scale, geometry_scale} =
+      from(s in DB.Subdivision,
+        select: {
+          fragment("ST_XMax(?) - ST_XMin(?)", s.geom, s.geom),
+          fragment("ST_YMax(?) - ST_YMin(?)", s.geom, s.geom)
+        },
+        distinct: true
+      )
+      |> DB.Repo.one()
 
     {corner1, corner2} =
       sectors
@@ -38,17 +57,19 @@ defmodule Boom.Grid do
 
     :persistent_term.put(@sectors, sectors)
     :persistent_term.put(@subdivisions, subdivisions)
+    :persistent_term.put(@grid_size, grid_size)
     :persistent_term.put(@grid_geometry, grid_geometry)
+    :persistent_term.put(@geometry_scale, geometry_scale)
     :persistent_term.put(@subs_by_extent, subs_by_extent)
     :persistent_term.put(@blocks_by_name, blocks_by_name)
-    :persistent_term.put(__MODULE__, :loaded)
-    :ok
+    {:ok, nil, :hibernate}
   end
 
   def sectors, do: :persistent_term.get(@sectors)
   def subdivisions, do: :persistent_term.get(@subdivisions)
+  def grid_size, do: :persistent_term.get(@grid_size)
   def grid_geometry, do: :persistent_term.get(@grid_geometry)
-  defdelegate grid_size, to: Block
+  def geometry_scale, do: :persistent_term.get(@geometry_scale)
 
   def subdivision_at(x, y), do: :persistent_term.get(@subs_by_extent) |> Map.fetch({x, y})
 
