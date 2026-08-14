@@ -184,10 +184,6 @@ defmodule Boom.Object do
     ["Geometry is impossible!  All positions have been ruled out."]
   end
 
-  defp describe_geometry(%Geo.Polygon{} = polygon, _) do
-    ["Location ", polygon |> GeoEngine.buffer(-0.001) |> describe_shape(), "."]
-  end
-
   defp describe_geometry(%Geo.MultiPolygon{} = multi, _) do
     [
       "Multiple possible locations:",
@@ -204,10 +200,8 @@ defmodule Boom.Object do
     ]
   end
 
-  defp describe_geometry(other, cache) when is_geometry(other) do
-    other
-    |> GeoEngine.buffer(1)
-    |> describe_geometry(cache)
+  defp describe_geometry(geometry, _) when is_geometry(geometry) do
+    ["Location ", describe_shape(geometry), "."]
   end
 
   defp comma_list(list, and_or \\ "and")
