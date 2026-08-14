@@ -384,7 +384,7 @@ defmodule Boom.Scene.Home do
 
   defp draw_polygon(graph, geometry, zoom, opts) do
     geometry
-    |> Boom.DB.GeoEngine.split_multipolygon()
+    |> to_polygons()
     |> Enum.flat_map(&geo_inner_outer_coords/1)
     |> Enum.reduce(graph, fn
       {:outer, geom}, gr ->
@@ -394,6 +394,10 @@ defmodule Boom.Scene.Home do
         P.path(gr, coords_to_path(geom, zoom), Keyword.put(opts, :fill, :black))
     end)
   end
+
+  defp to_polygons(%Geo.MultiPolygon{} = m), do: Boom.DB.GeoEngine.split_multipolygon(m)
+  defp to_polygons(%Geo.Polygon{} = p), do: [p]
+  defp to_polygons(%_{} = other), do: [Boom.DB.GeoEngine.buffer(other, 1)]
 
   defp geo_inner_outer_coords(%Geo.Polygon{coordinates: [outer, inner]}),
     do: [{:outer, outer}, {:inner, inner}]

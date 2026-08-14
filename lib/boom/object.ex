@@ -7,7 +7,7 @@ defmodule Boom.Object do
   alias Boom.CommandLog
   alias Boom.Grid
   alias Boom.DB.GeoEngine
-  import Boom.ObjectRegistry, only: [is_object_name: 1]
+  import Boom.ObjectRegistry, only: [is_object_name: 1, is_geometry: 1]
 
   defmodule State do
     @enforce_keys [:name, :title]
@@ -136,7 +136,7 @@ defmodule Boom.Object do
     {:noreply, state}
   end
 
-  @imp @impl true
+  @impl true
   def handle_info({:command_added, name}, %State{name: name} = state) do
     Logger.debug(log_prefix(state) <> "Recalculating due to added command")
     send(self(), :recalculate)
@@ -185,7 +185,7 @@ defmodule Boom.Object do
   end
 
   defp describe_geometry(%Geo.Polygon{} = polygon, _) do
-    ["Location ", describe_polygon(polygon), "."]
+    ["Location ", polygon |> GeoEngine.buffer(-0.001) |> describe_shape(), "."]
   end
 
   defp describe_geometry(%Geo.MultiPolygon{} = multi, _) do
@@ -195,9 +195,19 @@ defmodule Boom.Object do
       |> GeoEngine.split_multipolygon()
       |> Enum.with_index(1)
       |> Enum.map(fn {poly, index} ->
-        ["\n    Location #{index} ", describe_polygon(poly), "."]
+        [
+          "\n    Location #{index} ",
+          poly |> GeoEngine.buffer(-0.001) |> describe_shape(),
+          "."
+        ]
       end)
     ]
+  end
+
+  defp describe_geometry(other, cache) when is_geometry(other) do
+    other
+    |> GeoEngine.buffer(1)
+    |> describe_geometry(cache)
   end
 
   defp comma_list(list, and_or \\ "and")
@@ -239,19 +249,19 @@ defmodule Boom.Object do
   defp origin_name(:ownship), do: "Iron Nest"
   defp origin_name(name), do: name
 
-  defp describe_polygon(%Geo.Polygon{} = polygon) do
-    ints_by_sector = GeoEngine.count_grid_intersections_by_sector(polygon)
+  defp describe_shape(shape) do
+    ints_by_sector = GeoEngine.count_grid_intersections_by_sector(shape)
     sectors = Enum.count(ints_by_sector)
     total_subs = ints_by_sector |> Enum.sum_by(fn {_, count} -> count end)
 
     cond do
       total_subs == 1 ->
-        [sub] = GeoEngine.grid_intersections(polygon)
+        [sub] = GeoEngine.grid_intersections(shape)
         ["is ", sub.name]
 
       total_subs <= 5 ->
         subs =
-          GeoEngine.grid_intersections(polygon)
+          GeoEngine.grid_intersections(shape)
           |> Enum.sort_by(&{&1.global_x, &1.global_y})
           |> Enum.map(& &1.name)
 

@@ -15,7 +15,8 @@ defmodule Boom.DB.GeoEngine do
     )
     |> Repo.one()
     |> then(fn
-      %Geo.Polygon{coordinates: []} -> :disjoint
+      %{coordinates: []} -> :disjoint
+      %{coordinates: nil} -> :disjoint
       geometry -> geometry
     end)
   end
@@ -44,6 +45,18 @@ defmodule Boom.DB.GeoEngine do
     from(
       q in fragment("SELECT ST_Centroid(?::geometry) AS centroid", ^geom),
       select: fragment("centroid")
+    )
+    |> Repo.one()
+  end
+
+  def buffer(geom, amount) do
+    from(
+      q in fragment(
+        "SELECT ST_Buffer(?::geometry, ?::double precision) AS buffed",
+        ^geom,
+        ^amount
+      ),
+      select: fragment("buffed")
     )
     |> Repo.one()
   end
@@ -105,7 +118,7 @@ defmodule Boom.DB.GeoEngine do
       COUNT(sub.id) AS sub_count
   FROM subdivisions sub
   INNER JOIN sectors sec ON sub.sector_id = sec.id
-  WHERE ST_Intersects(sub.geom, ST_Buffer(?::geometry, -1))
+  WHERE ST_Intersects(sub.geom, ?::geometry)
   GROUP BY sector_name
   """
 
@@ -120,7 +133,7 @@ defmodule Boom.DB.GeoEngine do
 
   def grid_intersections(geom) do
     from(s in DB.Subdivision,
-      where: fragment("ST_Intersects(?, ST_Buffer(?::geometry, -1))", s.geom, ^geom)
+      where: fragment("ST_Intersects(?, ?::geometry)", s.geom, ^geom)
     )
     |> Repo.all()
   end
