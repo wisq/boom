@@ -31,15 +31,19 @@ defmodule Boom.Grid do
       from(s in DB.Subdivision, select: {max(s.global_x) + 1, max(s.global_y) + 1})
       |> DB.Repo.one()
 
-    {geometry_scale, geometry_scale} =
-      from(s in DB.Subdivision,
+    {scale, scale} =
+      from(a in DB.Subdivision,
+        join: b in DB.Subdivision,
+        on: b.global_x == a.global_x + 1 and b.global_y == a.global_y + 1,
         select: {
-          fragment("ST_XMax(?) - ST_XMin(?)", s.geom, s.geom),
-          fragment("ST_YMax(?) - ST_YMin(?)", s.geom, s.geom)
+          fragment("ABS(ROUND((ST_XMin(?) - ST_XMin(?))::numeric, 5))", a.geom, b.geom),
+          fragment("ABS(ROUND((ST_YMin(?) - ST_YMin(?))::numeric, 5))", a.geom, b.geom)
         },
         distinct: true
       )
       |> DB.Repo.one()
+
+    geometry_scale = decimal_to_integer(scale)
 
     {corner1, corner2} =
       sectors
@@ -75,4 +79,12 @@ defmodule Boom.Grid do
 
   def block_by_name(name),
     do: :persistent_term.get(@blocks_by_name) |> Map.fetch(String.upcase(name))
+
+  defp decimal_to_integer(decimal) do
+    float = Decimal.to_float(decimal)
+    int = round(float)
+
+    unless int == float, do: raise("Not a round number: #{inspect(decimal)}")
+    int
+  end
 end
