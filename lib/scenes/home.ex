@@ -362,6 +362,8 @@ defmodule Boom.Scene.Home do
   @lightness_range {30.0, 70.0}
   @maxint32 2 ** 32
 
+  def pick_colour(:ownship), do: {:color_hsl, {0, 70.0, 70.0}}
+
   def pick_colour(name) do
     <<hue_seed::32, sat_seed::32, light_seed::32, _::binary>> = :crypto.hash(:md5, name)
 

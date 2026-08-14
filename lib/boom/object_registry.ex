@@ -11,7 +11,7 @@ defmodule Boom.ObjectRegistry do
   end
 
   def register(name) when is_object_name(name) do
-    Registry.register(__MODULE__, canonical(name), {-1, :pending})
+    Registry.register(__MODULE__, canonical(name), {0, :pending})
   end
 
   def update(name, version, geometry)
@@ -43,9 +43,9 @@ defmodule Boom.ObjectRegistry do
   def count, do: Registry.count(__MODULE__)
 
   defp lookup(name) when is_object_name(name) do
-    case Registry.lookup(__MODULE__, String.downcase(name)) do
+    case Registry.lookup(__MODULE__, canonical(name)) do
       [{pid, {version, geometry}}] -> {pid, version, geometry}
-      [] -> {nil, -1, :pending}
+      [] -> {nil, 0, :unknown}
     end
   end
 
