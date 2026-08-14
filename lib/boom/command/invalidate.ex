@@ -13,4 +13,6 @@ defmodule Boom.Command.Invalidate do
       target: target
     }
   end
+
+  def command_text(%Command{type: __MODULE__, target: target}), do: "#{target} has moved"
 end

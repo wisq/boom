@@ -12,6 +12,8 @@ defmodule Boom.CommandParser do
     |> parse_words()
   end
 
+  defp parse_words(["emergency", "move"]), do: invalidate(:ownship)
+
   defp parse_words(words) do
     case lookahead(words, "is") do
       {name, ["is", "at" | rest]} -> parse_object(name) |> parse_at(rest)
@@ -19,9 +21,12 @@ defmodule Boom.CommandParser do
       {name, ["is", "bearing" | rest]} -> parse_object(name) |> parse_bearing(:degrees, rest)
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
+      {name, ["has", "moved"]} -> parse_object(name) |> invalidate()
       _ -> :fail
     end
   end
+
+  defp invalidate(target), do: Command.Invalidate.new(target)
 
   defp lookahead(words, target, skip \\ 1)
 
