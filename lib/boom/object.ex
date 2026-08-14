@@ -95,7 +95,7 @@ defmodule Boom.Object do
 
     state = %State{state | depends_on: depends_on, cache: cache}
 
-    if Enum.any?(entries, &{&1.changed}) do
+    if Enum.any?(entries, &{&1.changed}) || entries == [] do
       geometry =
         entries
         |> Enum.map(& &1.geometry)
