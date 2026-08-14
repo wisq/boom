@@ -41,13 +41,24 @@ defmodule Boom.DB.Repo.Migrations.PopulateSubdivisions do
       end)
       |> Enum.chunk_every(7000)
       |> Enum.each(&Repo.insert_all("subdivisions", &1))
+
+      # Ensure no overlaps.
+      %{rows: [[0]]} =
+        Repo.query!("""
+        SELECT COUNT(a.id)
+          FROM subdivisions a
+          INNER JOIN subdivisions b ON (
+            ST_Intersects(a.geom, b.geom)
+            AND a.id <> b.id
+          )
+        """)
     end)
   end
 
   defp square(x, y) do
     Boom.Grid.Block.square(
       grid_to_geo_coord(x, y),
-      grid_to_geo_coord(x + 1, y + 1)
+      grid_to_geo_coord(x + 1, y + 1) |> shrink(0.001)
     )
   end
 
@@ -58,4 +69,8 @@ defmodule Boom.DB.Repo.Migrations.PopulateSubdivisions do
     }
     |> then(fn {x, y} when x in 0..20000 and y in 0..10000 -> {x, y} end)
   end
+
+  # Shrink bottom right to avoid grid overlaps.
+  # Note that y coordinate must _increase_ to shrink a square.
+  defp shrink({x, y}, amount), do: {x - amount, y + amount}
 end

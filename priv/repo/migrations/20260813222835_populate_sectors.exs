@@ -9,29 +9,45 @@ defmodule Boom.DB.Repo.Migrations.PopulateSectors do
   @geometry_scale 1000
 
   def up do
-    @major_columns
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {column, x} ->
-      @major_rows
+    Repo.transaction(fn ->
+      @major_columns
       |> Enum.with_index()
-      |> Enum.map(fn {row, y} ->
-        %{
-          name: "#{column}#{row}",
-          x: x,
-          y: y,
-          geom: square(x, y)
-        }
+      |> Enum.flat_map(fn {column, x} ->
+        @major_rows
+        |> Enum.with_index()
+        |> Enum.map(fn {row, y} ->
+          %{
+            name: "#{column}#{row}",
+            x: x,
+            y: y,
+            geom: square(x, y)
+          }
+        end)
       end)
+      |> then(&Repo.insert_all("sectors", &1))
+
+      # Ensure no overlaps.
+      %{rows: [[0]]} =
+        Repo.query!("""
+        SELECT COUNT(a.id)
+          FROM sectors a
+          INNER JOIN sectors b ON (
+            ST_Intersects(a.geom, b.geom)
+            AND a.id <> b.id
+          )
+        """)
     end)
-    |> then(&Repo.insert_all("sectors", &1))
   end
+
+  @one_mm 0.001
 
   defp square(x, y) do
     Boom.Grid.Block.square(
       grid_to_geo_coord(x, y),
-      grid_to_geo_coord(x + 1, y + 1)
+      grid_to_geo_coord(x + 1, y + 1) |> shrink(0.001)
     )
   end
+
   defp grid_to_geo_coord(x, y) do
     {
       x * @geometry_scale,
@@ -39,4 +55,8 @@ defmodule Boom.DB.Repo.Migrations.PopulateSectors do
     }
     |> then(fn {x, y} when x in 0..20000 and y in 0..10000 -> {x, y} end)
   end
+
+  # Shrink bottom right to avoid grid overlaps.
+  # Note that y coordinate must _increase_ to shrink a square.
+  defp shrink({x, y}, amount), do: {x - amount, y + amount}
 end
