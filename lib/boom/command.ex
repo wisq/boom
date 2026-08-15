@@ -5,7 +5,8 @@ defmodule Boom.Command do
     type: nil,
     params: nil,
     origin: nil,
-    target: nil
+    target: nil,
+    active: true
   )
 
   import Boom.ObjectRegistry, only: [is_object_name: 1, is_geom_error: 1]

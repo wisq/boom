@@ -32,9 +32,10 @@ defmodule Boom.CommandLog do
   def active_entries(name, ets \\ @ets) when is_object_name(name) do
     entries(name, ets)
     |> Enum.take_while(fn
-      %Command{type: Command.Invalidate} -> false
+      %Command{type: Command.Invalidate, active: true} -> false
       %Command{} -> true
     end)
+    |> Enum.filter(& &1.active)
   end
 
   def count_all(ets \\ @ets) do

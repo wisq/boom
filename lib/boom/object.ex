@@ -77,10 +77,10 @@ defmodule Boom.Object do
   end
 
   @impl true
-  def handle_info(:recalculate, %State{name: name, title: title} = state) do
+  def handle_info(:recalculate, %State{name: name, title: title, cache: old_cache} = state) do
     entries =
       CommandLog.active_entries(name)
-      |> with_cache(state.cache)
+      |> with_cache(old_cache)
       |> Enum.map(fn {command, entry} -> CacheEntry.update(entry, command) end)
 
     depends_on =
@@ -89,13 +89,13 @@ defmodule Boom.Object do
       |> Enum.filter(&is_object_name/1)
       |> MapSet.new()
 
-    cache =
+    new_cache =
       entries
       |> Map.new(&{&1.command_id, &1})
 
-    state = %State{state | depends_on: depends_on, cache: cache}
+    state = %State{state | depends_on: depends_on, cache: new_cache}
 
-    if Enum.any?(entries, &{&1.changed}) || entries == [] do
+    if Enum.any?(entries, &{&1.changed}) || different_keys?(old_cache, new_cache) do
       geometry =
         entries
         |> Enum.map(& &1.geometry)
@@ -321,4 +321,10 @@ defmodule Boom.Object do
 
   defp format_metres(m) when m < 1000, do: "#{ceil(m)} metres"
   defp format_metres(m) when m >= 1000, do: "#{Float.ceil(m / 1000, 1)} kilometres"
+
+  defp different_keys?(map1, map2) do
+    keys1 = Map.keys(map1) |> Enum.sort()
+    keys2 = Map.keys(map2) |> Enum.sort()
+    keys1 != keys2
+  end
 end
