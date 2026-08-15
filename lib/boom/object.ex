@@ -158,6 +158,13 @@ defmodule Boom.Object do
   end
 
   @impl true
+  def handle_info({:observation_disabled, name}, %State{name: name} = state) do
+    Logger.debug(log_prefix(state) <> "Recalculating due to observation being disabled")
+    send(self(), :recalculate)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({:observation_added, _}, state), do: {:noreply, state}
 
   defp with_cache(observations, cache) do

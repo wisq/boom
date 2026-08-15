@@ -38,6 +38,11 @@ defmodule Boom.ObservationLog do
     |> Enum.filter(& &1.active)
   end
 
+  def list_all(ets \\ @ets) do
+    :ets.tab2list(ets)
+    |> Enum.flat_map(&elem(&1, 1))
+  end
+
   def count_all(ets \\ @ets) do
     :ets.foldl(
       fn {_, entries}, acc ->
@@ -70,6 +75,32 @@ defmodule Boom.ObservationLog do
     target
   end
 
+  def disable(id, pid \\ __MODULE__) when is_integer(id) do
+    case list_all() |> Enum.find(&(&1.id == id)) do
+      nil ->
+        {:error, :not_found}
+
+      %Observation{active: false} ->
+        {:error, :already_disabled}
+
+      %Observation{active: true, target: target} = obs ->
+        :ok = GenServer.call(pid, {:disable, obs})
+        PubSub.publish(:observation_log, {:observation_disabled, target})
+        {:ok, obs}
+    end
+  end
+
+  def rollback(pid \\ __MODULE__) do
+    with [_ | _] = entries <- list_all() |> Enum.filter(& &1.active) do
+      %Observation{active: true, target: target} = obs = Enum.max_by(entries, & &1.id)
+      :ok = GenServer.call(pid, {:disable, obs})
+      PubSub.publish(:observation_log, {:observation_disabled, target})
+      {:ok, obs}
+    else
+      [] -> {:error, :fully_rolled_back}
+    end
+  end
+
   @impl true
   def init(ets) when is_atom(ets) do
     :ets.new(ets, [:set, :protected, :named_table])
@@ -88,5 +119,23 @@ defmodule Boom.ObservationLog do
 
     :ets.insert(ets, [{target, entries}])
     {:reply, {:ok, observation}, %State{state | next_id: next_id + 1}}
+  end
+
+  @impl true
+  def handle_call(
+        {:disable, %Observation{id: id, target: target}},
+        _from,
+        %State{ets: ets} = state
+      ) do
+    entries(target, ets)
+    |> Enum.map(fn
+      %Observation{id: ^id} = obs -> %Observation{obs | active: false}
+      %Observation{} = obs -> obs
+    end)
+    |> then(fn entries ->
+      :ets.insert(ets, [{target, entries}])
+    end)
+
+    {:reply, :ok, state}
   end
 end

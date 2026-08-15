@@ -2,7 +2,7 @@ defmodule Boom.Command do
   @enforce_keys [:module]
   defstruct(
     module: nil,
-    args: nil
+    args: []
   )
 
   alias __MODULE__

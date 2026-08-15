@@ -17,7 +17,18 @@ defmodule Boom.CommandParser do
     end)
   end
 
+  defp parse_words(["list"]), do: Command.List.new()
+  defp parse_words(["rollback"]), do: Command.Rollback.new()
+  defp parse_words(["undo"]), do: Command.Rollback.new()
   defp parse_words(["emergency", "move" | rest]), do: parse_invalidate(:ownship, rest)
+
+  defp parse_words(["disable", idstr]) do
+    with {id, ""} <- Integer.parse(idstr) do
+      Command.Disable.new(id)
+    else
+      _ -> {:error, ["Not an integer: ", inspect(idstr)]}
+    end
+  end
 
   defp parse_words(words) do
     case lookahead(words, ["is", "has"]) do
@@ -27,7 +38,7 @@ defmodule Boom.CommandParser do
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
       {name, ["has", "moved" | rest]} -> parse_object(name) |> parse_invalidate(rest)
-      _ -> {:error, :unknown_command}
+      _ -> {:error, "Unknown command."}
     end
   end
 
@@ -78,7 +89,11 @@ defmodule Boom.CommandParser do
     end
   end
 
-  defp parse_invalidate(target, []), do: Observation.Invalidate.new(target)
+  defp parse_invalidate(target, []) do
+    Command.Observe.new([
+      Observation.Invalidate.new(target)
+    ])
+  end
 
   defp parse_invalidate(target, ["to" | grid]) do
     with {:ok, %Block{} = block} = parse_block(grid) do
@@ -106,7 +121,7 @@ defmodule Boom.CommandParser do
 
     case Grid.block_by_name(name) do
       {:ok, %Block{}} = success -> success
-      :error -> {:error, :block_not_found, name}
+      :error -> {:error, ["Grid block not found: ", name]}
     end
   end
 
@@ -133,7 +148,7 @@ defmodule Boom.CommandParser do
       unless junk == "", do: Logger.debug("Ignoring junk after bearing: #{inspect(junk)}")
       {:ok, bearing, error}
     else
-      nil -> {:error, :invalid_bearing, string}
+      nil -> {:error, ["Invalid bearing: ", string]}
     end
   end
 
@@ -162,7 +177,7 @@ defmodule Boom.CommandParser do
         "" -> {:ok, range * 1000, error * 1000}
       end
     else
-      nil -> {:error, :invalid_range, string}
+      nil -> {:error, ["Invalid range: ", inspect(string)]}
     end
   end
 end

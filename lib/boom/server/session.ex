@@ -109,7 +109,7 @@ defmodule Boom.Server.Session do
   defp run_command(command) do
     case CommandParser.parse(command) do
       {:ok, %Command{} = cmd} -> Command.run(cmd)
-      {:error, :unknown_command} -> output_local("Unknown command.")
+      {:error, iodata} when is_binary(iodata) or is_list(iodata) -> output_local(iodata)
     end
   end
 
