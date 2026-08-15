@@ -107,11 +107,25 @@ defmodule Boom.Object do
         {:noreply, state}
       else
         version = state.version + 1
+        blank_prefix = String.duplicate(" ", String.length(title) + 2)
 
-        case describe_geometry(geometry, cache) do
-          :silent -> :noop
-          iodata -> Boom.output([title, ": ", iodata])
-        end
+        describe_geometry(geometry, state)
+        |> then(fn
+          :silent ->
+            :noop
+
+          iodata ->
+            iodata
+            |> IO.iodata_to_binary()
+            |> String.split("\n")
+            |> Enum.with_index()
+            |> Enum.map(fn
+              {line, 0} -> [title, ": ", line]
+              {line, _} -> [blank_prefix, line]
+            end)
+            |> Enum.intersperse("\n")
+            |> Boom.output()
+        end)
 
         ObjectRegistry.update(name, version, geometry)
         Logger.info(log_prefix(state) <> "Updated to version #{version}.")
@@ -167,7 +181,7 @@ defmodule Boom.Object do
     "[#{inspect(__MODULE__)} #{inspect(name)}] "
   end
 
-  defp describe_geometry(:unknown, cache) do
+  defp describe_geometry(:unknown, %State{cache: cache}) do
     cache
     |> Map.values()
     |> Enum.filter(&(&1.geometry == :unknown))
@@ -194,15 +208,37 @@ defmodule Boom.Object do
       |> Enum.map(fn {poly, index} ->
         [
           "\n    Location #{index} ",
-          poly |> GeoEngine.buffer(-0.001) |> describe_shape(),
-          "."
+          describe_shape(poly),
+          ".",
+          "\n    ",
+          describe_targeting(poly)
         ]
       end)
     ]
   end
 
   defp describe_geometry(geometry, _) when is_geometry(geometry) do
-    ["Location ", describe_shape(geometry), "."]
+    ["Location ", describe_shape(geometry), ".\n", describe_targeting(geometry)]
+  end
+
+  @shells [
+    AP: 140,
+    HE: 270,
+    HCHE: 630
+  ]
+
+  defp describe_targeting(geometry) do
+    {radius, _aimpoint} = GeoEngine.min_bounding_circle(geometry)
+    uncertainty = ["Uncertainty radius is ", format_metres(radius)]
+
+    case Enum.find(@shells, fn {_, blast} -> radius <= blast end) do
+      nil ->
+        [uncertainty, "."]
+
+      {type, blast} ->
+        percent = ceil(100 * radius / blast)
+        [uncertainty, " (#{percent}% of an #{type} shell)."]
+    end
   end
 
   defp comma_list(list, and_or \\ "and")
@@ -282,4 +318,7 @@ defmodule Boom.Object do
         "whee"
     end
   end
+
+  defp format_metres(m) when m < 1000, do: "#{ceil(m)} metres"
+  defp format_metres(m) when m >= 1000, do: "#{Float.ceil(m / 1000, 1)} kilometres"
 end
