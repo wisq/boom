@@ -1,10 +1,7 @@
 defmodule Boom.Observation.At do
+  import Boom.Guards
   alias Boom.Grid.Block
   alias Boom.Observation
-
-  import Boom.ObjectRegistry, only: [is_object_name: 1]
-  defguard is_block(b) when is_struct(b, Block)
-  defguard is_origin(o) when is_object_name(o) or is_block(o)
 
   def new(%Block{} = block, target) when is_object_name(target) do
     %Observation{
@@ -14,7 +11,7 @@ defmodule Boom.Observation.At do
     }
   end
 
-  def build_geometry(%Observation{type: __MODULE__}, geom), do: geom
+  def build_solution(%Observation{type: __MODULE__}, origin_geom), do: origin_geom
 
   def command_text(%Observation{
         type: __MODULE__,

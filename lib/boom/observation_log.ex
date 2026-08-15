@@ -10,7 +10,7 @@ defmodule Boom.ObservationLog do
     )
   end
 
-  import Boom.ObjectRegistry, only: [is_object_name: 1]
+  import Boom.Guards
   alias Boom.Observation
 
   @ets __MODULE__.ETS

@@ -1,10 +1,7 @@
 defmodule Boom.Observation.Bearing do
+  import Boom.Guards
   alias Boom.Grid.Block
   alias Boom.Observation
-
-  import Boom.ObjectRegistry, only: [is_object_name: 1]
-  defguard is_block(b) when is_struct(b, Block)
-  defguard is_origin(o) when is_object_name(o) or is_block(o)
 
   def new(bearing, error, origin, target)
       when is_number(bearing) and is_number(error) and
@@ -55,7 +52,7 @@ defmodule Boom.Observation.Bearing do
   )
   """
 
-  def build_geometry(%Observation{type: __MODULE__, params: {bearing, error}}, geom) do
+  def build_solution(%Observation{type: __MODULE__, params: {bearing, error}}, origin_geom) do
     min_angle = bearing - error
     max_angle = bearing + error
 
@@ -64,7 +61,7 @@ defmodule Boom.Observation.Bearing do
         @sql,
         ^min_angle,
         ^max_angle,
-        ^geom
+        ^origin_geom
       ),
       select: fragment("target")
     )

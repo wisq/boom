@@ -9,7 +9,7 @@ defmodule Boom.Observation do
     active: true
   )
 
-  import Boom.ObjectRegistry, only: [is_object_name: 1, is_geom_error: 1]
+  import Boom.Guards
   alias __MODULE__, as: Obs
   alias Boom.Grid.Block
   alias Boom.ObjectRegistry
@@ -19,14 +19,14 @@ defmodule Boom.Observation do
   def get_origin_version(%Obs{origin: name}) when is_object_name(name),
     do: ObjectRegistry.version(name)
 
-  def build_geometry(%Obs{type: module, origin: %Block{geometry: geom}} = obs) do
-    module.build_geometry(obs, geom)
+  def build_solution(%Obs{type: module, origin: %Block{geometry: geom}} = obs) do
+    module.build_solution(obs, geom)
   end
 
-  def build_geometry(%Obs{type: module, origin: name} = obs) when is_object_name(name) do
-    case ObjectRegistry.geometry(name) do
-      err when is_geom_error(err) -> err
-      geom when is_struct(geom) -> module.build_geometry(obs, geom)
+  def build_solution(%Obs{type: module, origin: name} = obs) when is_object_name(name) do
+    case ObjectRegistry.solution(name) do
+      err when is_solution_error(err) -> err
+      geom when is_geometry(geom) -> module.build_solution(obs, geom)
     end
   end
 

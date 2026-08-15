@@ -1,13 +1,13 @@
 defmodule Boom.Object do
   use GenServer
   require Logger
+  import Boom.Guards
 
   alias Boom.ObjectRegistry
   alias Boom.Observation
   alias Boom.ObservationLog
   alias Boom.Grid
   alias Boom.DB.GeoEngine
-  import Boom.ObjectRegistry, only: [is_object_name: 1, is_geometry: 1]
 
   defmodule State do
     @enforce_keys [:name, :title]
@@ -26,25 +26,25 @@ defmodule Boom.Object do
       observation_id: nil,
       version: -1,
       origin: nil,
-      geometry: :pending,
+      solution: :pending,
       changed: false
     )
 
     def update(
-          %CacheEntry{observation_id: id, version: old_version, geometry: old_geometry} = entry,
+          %CacheEntry{observation_id: id, version: old_version, solution: old_solution} = entry,
           %Observation{id: id, origin: origin} = observation
         ) do
       new_version = Observation.get_origin_version(observation)
 
       if new_version != old_version do
-        new_geometry = Observation.build_geometry(observation)
+        new_solution = Observation.build_solution(observation)
 
         %CacheEntry{
           observation_id: id,
           version: new_version,
           origin: origin,
-          geometry: new_geometry,
-          changed: new_geometry != old_geometry
+          solution: new_solution,
+          changed: new_solution != old_solution
         }
       else
         %CacheEntry{entry | changed: false}
@@ -96,12 +96,12 @@ defmodule Boom.Object do
     state = %State{state | depends_on: depends_on, cache: new_cache}
 
     if Enum.any?(entries, &{&1.changed}) || different_keys?(old_cache, new_cache) do
-      geometry =
+      solution =
         entries
-        |> Enum.map(& &1.geometry)
-        |> build_geometry()
+        |> Enum.map(& &1.solution)
+        |> build_solution()
 
-      if geometry == ObjectRegistry.geometry(name) do
+      if solution == ObjectRegistry.solution(name) do
         Boom.output([title, ": Geometry is unchanged."])
         Logger.info(log_prefix(state) <> "Geometry is unchanged.")
         {:noreply, state}
@@ -109,7 +109,7 @@ defmodule Boom.Object do
         version = state.version + 1
         blank_prefix = String.duplicate(" ", String.length(title) + 2)
 
-        describe_geometry(geometry, state)
+        describe_solution(solution, state)
         |> then(fn
           :silent ->
             :noop
@@ -127,7 +127,7 @@ defmodule Boom.Object do
             |> Boom.output()
         end)
 
-        ObjectRegistry.update(name, version, geometry)
+        ObjectRegistry.update(name, version, solution)
         Logger.info(log_prefix(state) <> "Updated to version #{version}.")
 
         {:noreply, %State{state | version: version}}
@@ -172,9 +172,9 @@ defmodule Boom.Object do
     |> Enum.map(&{&1, Map.get(cache, &1)})
   end
 
-  defp build_geometry([]), do: :unknown
+  defp build_solution([]), do: :unknown
 
-  defp build_geometry([_ | _] = geoms) do
+  defp build_solution([_ | _] = geoms) do
     geoms
     |> Enum.reduce_while(Grid.grid_geometry(), fn
       :pending, _ -> {:halt, :pending}
@@ -188,25 +188,25 @@ defmodule Boom.Object do
     "[#{inspect(__MODULE__)} #{inspect(name)}] "
   end
 
-  defp describe_geometry(:unknown, %State{cache: cache}) do
+  defp describe_solution(:unknown, %State{cache: cache}) do
     cache
     |> Map.values()
-    |> Enum.filter(&(&1.geometry == :unknown))
+    |> Enum.filter(&(&1.solution == :unknown))
     |> Enum.map(fn entry -> entry.origin |> origin_name() end)
     |> then(fn
-      [] -> ["Waiting for geometry data."]
-      deps -> ["Waiting on geometry data for ", comma_list(deps), "."]
+      [] -> ["Waiting for position data."]
+      deps -> ["Waiting on position data for ", comma_list(deps), "."]
     end)
   end
 
   # Unless there's a bug, this should be a very temporary condition.
-  defp describe_geometry(:pending, _), do: :silent
+  defp describe_solution(:pending, _), do: :silent
 
-  defp describe_geometry(:disjoint, _) do
+  defp describe_solution(:disjoint, _) do
     ["Geometry is impossible!  All positions have been ruled out."]
   end
 
-  defp describe_geometry(%Geo.MultiPolygon{} = multi, _) do
+  defp describe_solution(%Geo.MultiPolygon{} = multi, _) do
     [
       "Multiple possible locations:",
       multi
@@ -224,7 +224,7 @@ defmodule Boom.Object do
     ]
   end
 
-  defp describe_geometry(geometry, _) when is_geometry(geometry) do
+  defp describe_solution(geometry, _) when is_geometry(geometry) do
     ["Location ", describe_shape(geometry), ".\n", describe_targeting(geometry)]
   end
 

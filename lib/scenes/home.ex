@@ -32,12 +32,12 @@ defmodule Boom.Scene.Home do
 
   use Scenic.Scene
   require Logger
+  import Boom.Guards
 
   alias Scenic.{Scene, Graph, Primitive}
   alias Scenic.Primitives, as: P
   alias Boom.Grid
   alias Boom.Grid.Block
-  import Boom.ObjectRegistry, only: [is_geom_error: 1]
 
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
@@ -273,7 +273,7 @@ defmodule Boom.Scene.Home do
   end
 
   defp draw_object_geometries(graph, zoom) do
-    Boom.ObjectRegistry.all_geometries()
+    Boom.ObjectRegistry.all_solutions()
     |> Enum.reduce(graph, fn {name, geometry}, gr ->
       colour = pick_colour(name)
       draw_polygon(gr, geometry, zoom, fill: colour, stroke: {2, brighter(colour)})
@@ -380,9 +380,9 @@ defmodule Boom.Scene.Home do
 
   defp brighter({:color_hsl, {hue, _, _}}), do: {:color_hsl, {hue, 100.0, 90.0}}
 
-  defp draw_polygon(graph, err, _, _) when is_geom_error(err), do: graph
+  defp draw_polygon(graph, err, _, _) when is_solution_error(err), do: graph
 
-  defp draw_polygon(graph, geometry, zoom, opts) do
+  defp draw_polygon(graph, geometry, zoom, opts) when is_geometry(geometry) do
     geometry
     |> to_polygons()
     |> Enum.flat_map(&geo_inner_outer_coords/1)
