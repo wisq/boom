@@ -1,9 +1,10 @@
 defmodule Boom.CommandParser do
   require Logger
+
   alias Boom.Observation
   alias Boom.Grid
   alias Boom.Grid.Block
-
+  alias Boom.Command
   alias Boom.CommandParser.Compass
 
   def parse(cmd) do
@@ -11,9 +12,8 @@ defmodule Boom.CommandParser do
     |> String.split()
     |> parse_words()
     |> then(fn
-      %Observation{} = cmd -> [cmd]
-      [%Observation{} | _] = cmdlist -> cmdlist
-      :fail -> :fail
+      %Command{} = cmd -> {:ok, cmd}
+      {:error, _} = err -> err
     end)
   end
 
@@ -27,7 +27,7 @@ defmodule Boom.CommandParser do
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
       {name, ["has", "moved" | rest]} -> parse_object(name) |> parse_invalidate(rest)
-      _ -> :fail
+      _ -> {:error, :unknown_command}
     end
   end
 
@@ -52,7 +52,9 @@ defmodule Boom.CommandParser do
 
   defp parse_at(target, grid) do
     with {:ok, %Block{} = block} = parse_block(grid) do
-      Observation.At.new(block, target)
+      Command.Observe.new([
+        Observation.At.new(block, target)
+      ])
     end
   end
 
@@ -60,7 +62,9 @@ defmodule Boom.CommandParser do
     with {direction, ["from" | origin]} <- lookahead(rest, "from"),
          {:ok, bearing, error} <- parse_direction(type, direction),
          origin <- parse_object(origin) do
-      Observation.Bearing.new(bearing, error, origin, target)
+      Command.Observe.new([
+        Observation.Bearing.new(bearing, error, origin, target)
+      ])
     end
   end
 
@@ -68,7 +72,9 @@ defmodule Boom.CommandParser do
     with {range, ["from" | origin]} <- lookahead(rest, "from"),
          {:ok, range, error} <- parse_range(range),
          origin <- parse_object(origin) do
-      Observation.Range.new(range, error, origin, target)
+      Command.Observe.new([
+        Observation.Range.new(range, error, origin, target)
+      ])
     end
   end
 
@@ -76,10 +82,10 @@ defmodule Boom.CommandParser do
 
   defp parse_invalidate(target, ["to" | grid]) do
     with {:ok, %Block{} = block} = parse_block(grid) do
-      [
+      Command.Observe.new([
         Observation.Invalidate.new(target),
         Observation.At.new(block, target)
-      ]
+      ])
     end
   end
 

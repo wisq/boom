@@ -2,7 +2,8 @@ defmodule Boom.Server.Session do
   use GenServer
   require Logger
 
-  alias Boom.{Observation, ObservationLog, CommandParser}
+  alias Boom.Command
+  alias Boom.CommandParser
 
   defmodule State do
     @enforce_keys [:id, :port, :peer, :log_prefix]
@@ -107,8 +108,8 @@ defmodule Boom.Server.Session do
 
   defp run_command(command) do
     case CommandParser.parse(command) do
-      [%Observation{} | _] = cmdlist -> ObservationLog.add(cmdlist)
-      :fail -> output_local("Unknown command.")
+      {:ok, %Command{} = cmd} -> Command.run(cmd)
+      {:error, :unknown_command} -> output_local("Unknown command.")
     end
   end
 
