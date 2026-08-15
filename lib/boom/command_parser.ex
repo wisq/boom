@@ -33,6 +33,10 @@ defmodule Boom.CommandParser do
 
   defp lookahead(words, targets, skip \\ 1)
 
+  defp lookahead(words, target, skip) when is_binary(target) do
+    lookahead(words, [target], skip)
+  end
+
   defp lookahead([], _, _), do: :no_match
 
   defp lookahead([head | rest] = match, targets, skip) do
