@@ -47,7 +47,17 @@ defmodule Boom.CommandLog do
     )
   end
 
-  def add(%Command{} = command, pid \\ __MODULE__) do
+  def add(commands, pid \\ __MODULE__) when is_list(commands) do
+    commands
+    |> Enum.map(&add_one(&1, pid))
+    |> Enum.uniq()
+    |> Enum.map(fn target ->
+      PubSub.publish(:command_log, {:command_added, target})
+      Boom.ObjectSupervisor.ensure_started(target)
+    end)
+  end
+
+  defp add_one(%Command{} = command, pid) do
     {:ok, %Command{target: target} = command} = GenServer.call(pid, {:add, command})
 
     Boom.output([
@@ -56,9 +66,7 @@ defmodule Boom.CommandLog do
       IO.ANSI.normal()
     ])
 
-    PubSub.publish(:command_log, {:command_added, target})
-    Boom.ObjectSupervisor.ensure_started(target)
-    command
+    target
   end
 
   @impl true

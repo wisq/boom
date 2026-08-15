@@ -10,38 +10,44 @@ defmodule Boom.CommandParser do
     cmd
     |> String.split()
     |> parse_words()
+    |> then(fn
+      %Command{} = cmd -> [cmd]
+      [%Command{} | _] = cmdlist -> cmdlist
+      :fail -> :fail
+    end)
   end
 
-  defp parse_words(["emergency", "move"]), do: invalidate(:ownship)
+  defp parse_words(["emergency", "move" | rest]), do: parse_invalidate(:ownship, rest)
 
   defp parse_words(words) do
-    case lookahead(words, "is") do
+    case lookahead(words, ["is", "has"]) do
       {name, ["is", "at" | rest]} -> parse_object(name) |> parse_at(rest)
       {name, ["is", "in" | rest]} -> parse_object(name) |> parse_at(rest)
       {name, ["is", "bearing" | rest]} -> parse_object(name) |> parse_bearing(:degrees, rest)
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
-      {name, ["has", "moved"]} -> parse_object(name) |> invalidate()
+      {name, ["has", "moved" | rest]} -> parse_object(name) |> parse_invalidate(rest)
       _ -> :fail
     end
   end
 
-  defp invalidate(target), do: Command.Invalidate.new(target)
-
-  defp lookahead(words, target, skip \\ 1)
+  defp lookahead(words, targets, skip \\ 1)
 
   defp lookahead([], _, _), do: :no_match
-  defp lookahead([target | _] = match, target, 0), do: {[], match}
 
-  defp lookahead([head | rest], target, skip) do
-    case lookahead(rest, target, max(skip - 1, 0)) do
-      {before, match} -> {[head | before], match}
-      :no_match -> :no_match
+  defp lookahead([head | rest] = match, targets, skip) do
+    if head in targets do
+      {[], match}
+    else
+      case lookahead(rest, targets, max(skip - 1, 0)) do
+        {before, match} -> {[head | before], match}
+        :no_match -> :no_match
+      end
     end
   end
 
-  defp parse_at(target, sector) do
-    with {:ok, %Block{} = block} = parse_block(sector) do
+  defp parse_at(target, grid) do
+    with {:ok, %Block{} = block} = parse_block(grid) do
       Command.At.new(block, target)
     end
   end
@@ -59,6 +65,17 @@ defmodule Boom.CommandParser do
          {:ok, range, error} <- parse_range(range),
          origin <- parse_object(origin) do
       Command.Range.new(range, error, origin, target)
+    end
+  end
+
+  defp parse_invalidate(target, []), do: Command.Invalidate.new(target)
+
+  defp parse_invalidate(target, ["to" | grid]) do
+    with {:ok, %Block{} = block} = parse_block(grid) do
+      [
+        Command.Invalidate.new(target),
+        Command.At.new(block, target)
+      ]
     end
   end
 

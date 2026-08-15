@@ -107,7 +107,7 @@ defmodule Boom.Server.Session do
 
   defp run_command(command) do
     case CommandParser.parse(command) do
-      %Command{} = command -> CommandLog.add(command)
+      [%Command{} | _] = cmdlist -> CommandLog.add(cmdlist)
       :fail -> output_local("Unknown command.")
     end
   end
