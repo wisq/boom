@@ -1,18 +1,18 @@
-defmodule Boom.Command.Invalidate do
+defmodule Boom.Observation.Invalidate do
   alias Boom.Grid.Block
-  alias Boom.Command
+  alias Boom.Observation
 
   import Boom.ObjectRegistry, only: [is_object_name: 1]
   defguard is_block(b) when is_struct(b, Block)
   defguard is_origin(o) when is_object_name(o) or is_block(o)
 
   def new(target) when is_object_name(target) do
-    %Command{
+    %Observation{
       type: __MODULE__,
       origin: nil,
       target: target
     }
   end
 
-  def command_text(%Command{type: __MODULE__, target: target}), do: "#{target} has moved"
+  def command_text(%Observation{type: __MODULE__, target: target}), do: "#{target} has moved"
 end

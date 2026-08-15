@@ -3,8 +3,8 @@ defmodule Boom.Object do
   require Logger
 
   alias Boom.ObjectRegistry
-  alias Boom.Command
-  alias Boom.CommandLog
+  alias Boom.Observation
+  alias Boom.ObservationLog
   alias Boom.Grid
   alias Boom.DB.GeoEngine
   import Boom.ObjectRegistry, only: [is_object_name: 1, is_geometry: 1]
@@ -21,9 +21,9 @@ defmodule Boom.Object do
   end
 
   defmodule CacheEntry do
-    @enforce_keys [:command_id]
+    @enforce_keys [:observation_id]
     defstruct(
-      command_id: nil,
+      observation_id: nil,
       version: -1,
       origin: nil,
       geometry: :pending,
@@ -31,16 +31,16 @@ defmodule Boom.Object do
     )
 
     def update(
-          %CacheEntry{command_id: id, version: old_version, geometry: old_geometry} = entry,
-          %Command{id: id, origin: origin} = command
+          %CacheEntry{observation_id: id, version: old_version, geometry: old_geometry} = entry,
+          %Observation{id: id, origin: origin} = observation
         ) do
-      new_version = Command.get_origin_version(command)
+      new_version = Observation.get_origin_version(observation)
 
       if new_version != old_version do
-        new_geometry = Command.build_geometry(command)
+        new_geometry = Observation.build_geometry(observation)
 
         %CacheEntry{
-          command_id: id,
+          observation_id: id,
           version: new_version,
           origin: origin,
           geometry: new_geometry,
@@ -51,8 +51,8 @@ defmodule Boom.Object do
       end
     end
 
-    def update(nil, %Command{id: id} = command) do
-      update(%CacheEntry{command_id: id}, command)
+    def update(nil, %Observation{id: id} = observation) do
+      update(%CacheEntry{observation_id: id}, observation)
     end
   end
 
@@ -70,7 +70,7 @@ defmodule Boom.Object do
   def init(name) do
     with {:ok, _} <- ObjectRegistry.register(name) do
       PubSub.subscribe(self(), :object_registry)
-      PubSub.subscribe(self(), :command_log)
+      PubSub.subscribe(self(), :observation_log)
       send(self(), :recalculate)
       {:ok, %State{name: name, title: generate_title(name)}}
     end
@@ -79,9 +79,9 @@ defmodule Boom.Object do
   @impl true
   def handle_info(:recalculate, %State{name: name, title: title, cache: old_cache} = state) do
     entries =
-      CommandLog.active_entries(name)
+      ObservationLog.active_entries(name)
       |> with_cache(old_cache)
-      |> Enum.map(fn {command, entry} -> CacheEntry.update(entry, command) end)
+      |> Enum.map(fn {observation, entry} -> CacheEntry.update(entry, observation) end)
 
     depends_on =
       entries
@@ -91,7 +91,7 @@ defmodule Boom.Object do
 
     new_cache =
       entries
-      |> Map.new(&{&1.command_id, &1})
+      |> Map.new(&{&1.observation_id, &1})
 
     state = %State{state | depends_on: depends_on, cache: new_cache}
 
@@ -151,17 +151,17 @@ defmodule Boom.Object do
   end
 
   @impl true
-  def handle_info({:command_added, name}, %State{name: name} = state) do
-    Logger.debug(log_prefix(state) <> "Recalculating due to added command")
+  def handle_info({:observation_added, name}, %State{name: name} = state) do
+    Logger.debug(log_prefix(state) <> "Recalculating due to new observation")
     send(self(), :recalculate)
     {:noreply, state}
   end
 
   @impl true
-  def handle_info({:command_added, _}, state), do: {:noreply, state}
+  def handle_info({:observation_added, _}, state), do: {:noreply, state}
 
-  defp with_cache(commands, cache) do
-    commands
+  defp with_cache(observations, cache) do
+    observations
     |> Enum.map(&{&1, Map.get(cache, &1)})
   end
 

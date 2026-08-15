@@ -1,4 +1,4 @@
-defmodule Boom.CommandLog do
+defmodule Boom.ObservationLog do
   use GenServer
   require Logger
 
@@ -11,7 +11,7 @@ defmodule Boom.CommandLog do
   end
 
   import Boom.ObjectRegistry, only: [is_object_name: 1]
-  alias Boom.Command
+  alias Boom.Observation
 
   @ets __MODULE__.ETS
   @log_prefix "[#{inspect(__MODULE__)}] "
@@ -32,8 +32,8 @@ defmodule Boom.CommandLog do
   def active_entries(name, ets \\ @ets) when is_object_name(name) do
     entries(name, ets)
     |> Enum.take_while(fn
-      %Command{type: Command.Invalidate, active: true} -> false
-      %Command{} -> true
+      %Observation{type: Observation.Invalidate, active: true} -> false
+      %Observation{} -> true
     end)
     |> Enum.filter(& &1.active)
   end
@@ -48,22 +48,22 @@ defmodule Boom.CommandLog do
     )
   end
 
-  def add(commands, pid \\ __MODULE__) when is_list(commands) do
-    commands
+  def add(observations, pid \\ __MODULE__) when is_list(observations) do
+    observations
     |> Enum.map(&add_one(&1, pid))
     |> Enum.uniq()
     |> Enum.map(fn target ->
-      PubSub.publish(:command_log, {:command_added, target})
+      PubSub.publish(:observation_log, {:observation_added, target})
       Boom.ObjectSupervisor.ensure_started(target)
     end)
   end
 
-  defp add_one(%Command{} = command, pid) do
-    {:ok, %Command{target: target} = command} = GenServer.call(pid, {:add, command})
+  defp add_one(%Observation{} = observation, pid) do
+    {:ok, %Observation{target: target} = observation} = GenServer.call(pid, {:add, observation})
 
     Boom.output([
       IO.ANSI.light_green(),
-      to_string(command),
+      to_string(observation),
       IO.ANSI.normal()
     ])
 
@@ -79,14 +79,14 @@ defmodule Boom.CommandLog do
 
   @impl true
   def handle_call(
-        {:add, %Command{target: target} = command},
+        {:add, %Observation{target: target} = observation},
         _from,
         %State{next_id: next_id, ets: ets} = state
       ) do
-    command = %Command{command | id: next_id}
-    entries = [command | entries(target, ets)]
+    observation = %Observation{observation | id: next_id}
+    entries = [observation | entries(target, ets)]
 
     :ets.insert(ets, [{target, entries}])
-    {:reply, {:ok, command}, %State{state | next_id: next_id + 1}}
+    {:reply, {:ok, observation}, %State{state | next_id: next_id + 1}}
   end
 end

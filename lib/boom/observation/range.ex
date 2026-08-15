@@ -1,6 +1,6 @@
-defmodule Boom.Command.Range do
+defmodule Boom.Observation.Range do
   alias Boom.Grid.Block
-  alias Boom.Command
+  alias Boom.Observation
 
   import Boom.ObjectRegistry, only: [is_object_name: 1]
   defguard is_block(b) when is_struct(b, Block)
@@ -9,7 +9,7 @@ defmodule Boom.Command.Range do
   def new(range, error, origin, target)
       when is_number(range) and is_number(error) and
              is_origin(origin) and is_object_name(target) do
-    %Command{
+    %Observation{
       type: __MODULE__,
       params: {range, error},
       origin: origin,
@@ -20,7 +20,7 @@ defmodule Boom.Command.Range do
   import Ecto.Query, only: [from: 2]
   alias Boom.DB.Repo
 
-  def build_geometry(%Command{type: __MODULE__, params: {range, error}}, geom) do
+  def build_geometry(%Observation{type: __MODULE__, params: {range, error}}, geom) do
     min_range = range - error
     max_range = range + error
 
@@ -36,7 +36,7 @@ defmodule Boom.Command.Range do
     |> Repo.one()
   end
 
-  def command_text(%Command{
+  def command_text(%Observation{
         type: __MODULE__,
         target: target,
         params: {range, error},

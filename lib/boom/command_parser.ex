@@ -1,6 +1,6 @@
 defmodule Boom.CommandParser do
   require Logger
-  alias Boom.Command
+  alias Boom.Observation
   alias Boom.Grid
   alias Boom.Grid.Block
 
@@ -11,8 +11,8 @@ defmodule Boom.CommandParser do
     |> String.split()
     |> parse_words()
     |> then(fn
-      %Command{} = cmd -> [cmd]
-      [%Command{} | _] = cmdlist -> cmdlist
+      %Observation{} = cmd -> [cmd]
+      [%Observation{} | _] = cmdlist -> cmdlist
       :fail -> :fail
     end)
   end
@@ -52,7 +52,7 @@ defmodule Boom.CommandParser do
 
   defp parse_at(target, grid) do
     with {:ok, %Block{} = block} = parse_block(grid) do
-      Command.At.new(block, target)
+      Observation.At.new(block, target)
     end
   end
 
@@ -60,7 +60,7 @@ defmodule Boom.CommandParser do
     with {direction, ["from" | origin]} <- lookahead(rest, "from"),
          {:ok, bearing, error} <- parse_direction(type, direction),
          origin <- parse_object(origin) do
-      Command.Bearing.new(bearing, error, origin, target)
+      Observation.Bearing.new(bearing, error, origin, target)
     end
   end
 
@@ -68,17 +68,17 @@ defmodule Boom.CommandParser do
     with {range, ["from" | origin]} <- lookahead(rest, "from"),
          {:ok, range, error} <- parse_range(range),
          origin <- parse_object(origin) do
-      Command.Range.new(range, error, origin, target)
+      Observation.Range.new(range, error, origin, target)
     end
   end
 
-  defp parse_invalidate(target, []), do: Command.Invalidate.new(target)
+  defp parse_invalidate(target, []), do: Observation.Invalidate.new(target)
 
   defp parse_invalidate(target, ["to" | grid]) do
     with {:ok, %Block{} = block} = parse_block(grid) do
       [
-        Command.Invalidate.new(target),
-        Command.At.new(block, target)
+        Observation.Invalidate.new(target),
+        Observation.At.new(block, target)
       ]
     end
   end

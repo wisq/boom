@@ -1,6 +1,6 @@
-defmodule Boom.Command.Bearing do
+defmodule Boom.Observation.Bearing do
   alias Boom.Grid.Block
-  alias Boom.Command
+  alias Boom.Observation
 
   import Boom.ObjectRegistry, only: [is_object_name: 1]
   defguard is_block(b) when is_struct(b, Block)
@@ -9,7 +9,7 @@ defmodule Boom.Command.Bearing do
   def new(bearing, error, origin, target)
       when is_number(bearing) and is_number(error) and
              is_origin(origin) and is_object_name(target) do
-    %Command{
+    %Observation{
       type: __MODULE__,
       params: {bearing, error},
       origin: origin,
@@ -55,7 +55,7 @@ defmodule Boom.Command.Bearing do
   )
   """
 
-  def build_geometry(%Command{type: __MODULE__, params: {bearing, error}}, geom) do
+  def build_geometry(%Observation{type: __MODULE__, params: {bearing, error}}, geom) do
     min_angle = bearing - error
     max_angle = bearing + error
 
@@ -71,7 +71,7 @@ defmodule Boom.Command.Bearing do
     |> Repo.one()
   end
 
-  def command_text(%Command{
+  def command_text(%Observation{
         type: __MODULE__,
         target: target,
         params: {bearing, error},

@@ -2,7 +2,7 @@ defmodule Boom.Server.Session do
   use GenServer
   require Logger
 
-  alias Boom.{Command, CommandLog, CommandParser}
+  alias Boom.{Observation, ObservationLog, CommandParser}
 
   defmodule State do
     @enforce_keys [:id, :port, :peer, :log_prefix]
@@ -88,16 +88,16 @@ defmodule Boom.Server.Session do
 
   defp generate_banner do
     object_count = Boom.ObjectRegistry.count()
-    command_count = Boom.CommandLog.count_all()
+    obs_count = Boom.ObservationLog.count_all()
 
     [
       "BOOM: System is online.\n",
-      if object_count == 0 && command_count == 0 do
-        "No commands have been run yet, and no objects are known.\n"
+      if object_count == 0 && obs_count == 0 do
+        "No observations have been logged yet, and no objects are known.\n"
       else
         [
-          "Known objects:    #{object_count}\n",
-          "Commands entered: #{command_count}\n"
+          "Known objects: #{object_count}\n",
+          "Observations:  #{obs_count}\n"
         ]
       end,
       "Ready for input ..."
@@ -107,7 +107,7 @@ defmodule Boom.Server.Session do
 
   defp run_command(command) do
     case CommandParser.parse(command) do
-      [%Command{} | _] = cmdlist -> CommandLog.add(cmdlist)
+      [%Observation{} | _] = cmdlist -> ObservationLog.add(cmdlist)
       :fail -> output_local("Unknown command.")
     end
   end

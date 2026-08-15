@@ -15,7 +15,7 @@ defmodule Boom do
       PubSub,
       Boom.DB.Repo,
       Boom.Grid,
-      Boom.CommandLog,
+      Boom.ObservationLog,
       Boom.ObjectRegistry,
       Boom.ObjectSupervisor,
       Boom.Server.SessionSupervisor,
