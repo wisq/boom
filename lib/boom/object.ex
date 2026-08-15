@@ -172,8 +172,9 @@ defmodule Boom.Object do
     |> Map.values()
     |> Enum.filter(&(&1.geometry == :unknown))
     |> Enum.map(fn entry -> entry.origin |> origin_name() end)
-    |> then(fn deps ->
-      ["Waiting on geometry data for ", comma_list(deps), "."]
+    |> then(fn
+      [] -> ["Waiting for geometry data."]
+      deps -> ["Waiting on geometry data for ", comma_list(deps), "."]
     end)
   end
 
