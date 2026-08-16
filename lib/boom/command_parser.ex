@@ -71,7 +71,13 @@ defmodule Boom.CommandParser do
   end
 
   defp parse_bearing(target, type, rest) when type in [:degrees, :compass] do
-    with {direction, ["from" | origin]} <- lookahead(rest, "from"),
+    separator =
+      case type do
+        :compass -> ["from", "of"]
+        :degrees -> ["from"]
+      end
+
+    with {direction, [_from_of | origin]} <- lookahead(rest, separator),
          {:ok, bearing, error} <- parse_direction(type, direction),
          origin <- parse_object(origin) do
       Command.Observe.new([
