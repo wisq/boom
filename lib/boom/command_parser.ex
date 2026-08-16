@@ -37,6 +37,7 @@ defmodule Boom.CommandParser do
       {name, ["is", "bearing" | rest]} -> parse_object(name) |> parse_bearing(:degrees, rest)
       {name, ["is", "due" | rest]} -> parse_object(name) |> parse_bearing(:compass, rest)
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
+      {name, ["is" | rest]} -> parse_object(name) |> parse_is(rest)
       {name, ["has", "moved" | rest]} -> parse_object(name) |> parse_invalidate(rest)
       _ -> {:error, "Unknown command."}
     end
@@ -89,6 +90,29 @@ defmodule Boom.CommandParser do
     end
   end
 
+  @is_range ~r/([0-9]|\b)(
+    k?m
+    | (kilo)?met(re|er)s?
+  )\b/x
+
+  @is_degrees ~r/
+    [°º]   # degree symbols
+    | ([0-9]|\b) deg(ree)s? \b
+  /x
+
+  defp parse_is(target, rest) do
+    with {before, [_from | _]} <- lookahead(rest, ["from", "of"]) do
+      string = Enum.join(before, " ")
+
+      cond do
+        string =~ @is_range -> parse_range(target, rest)
+        string =~ @is_degrees -> parse_bearing(target, :degrees, rest)
+        is_compass_direction(string) -> parse_bearing(target, :compass, rest)
+        true -> {:error, "Not sure if #{inspect(string)} is a bearing or range."}
+      end
+    end
+  end
+
   defp parse_invalidate(target, []) do
     Command.Observe.new([
       Observation.Invalidate.new(target)
@@ -134,7 +158,7 @@ defmodule Boom.CommandParser do
       [., ]       # we allow a variety of separators
       ([0-9]+)    # decimal places
     )?
-    [\s°º]*       # ignore degree symbols
+    [\s°º]*       # ignore degree symbols (correct or otherwise)
     (?:\s?deg(?:rees?))?   # ignore english words
     \s*(.*)       # log and ignore other junk
   $/x
@@ -178,6 +202,13 @@ defmodule Boom.CommandParser do
       end
     else
       nil -> {:error, ["Invalid range: ", inspect(string)]}
+    end
+  end
+
+  defp is_compass_direction(str) do
+    case Compass.parse(str) do
+      {:ok, _bearing, _error} -> true
+      {:error, _err, _str} -> false
     end
   end
 end
