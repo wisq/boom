@@ -8,6 +8,7 @@ defmodule Boom.Object do
   alias Boom.ObservationLog
   alias Boom.Grid
   alias Boom.DB.GeoEngine
+  alias Boom.Ammo
 
   defmodule State do
     @enforce_keys [:name, :title]
@@ -228,23 +229,17 @@ defmodule Boom.Object do
     ["Location ", describe_shape(geometry), ".\n", describe_targeting(geometry)]
   end
 
-  @shells [
-    AP: 140,
-    HE: 270,
-    HCHE: 630
-  ]
-
   defp describe_targeting(geometry) do
     {radius, _aimpoint} = GeoEngine.min_bounding_circle(geometry)
     uncertainty = ["Uncertainty radius is ", format_metres(radius)]
 
-    case Enum.find(@shells, fn {_, blast} -> radius <= blast end) do
+    case Ammo.Types.auto_suggest() |> Enum.find(fn ammo -> radius <= ammo.blast_radius end) do
       nil ->
         [uncertainty, "."]
 
-      {type, blast} ->
+      %Ammo{name: name, blast_radius: blast} ->
         percent = ceil(100 * radius / blast)
-        [uncertainty, " (#{percent}% of an #{type} shell)."]
+        [uncertainty, " (#{percent}% of an #{name} shell)."]
     end
   end
 

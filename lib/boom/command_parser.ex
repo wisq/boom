@@ -4,6 +4,7 @@ defmodule Boom.CommandParser do
   alias Boom.Observation
   alias Boom.Grid
   alias Boom.Grid.Block
+  alias Boom.Ammo
   alias Boom.Command
   alias Boom.CommandParser.Compass
 
@@ -21,6 +22,11 @@ defmodule Boom.CommandParser do
   defp parse_words(["rollback"]), do: Command.Rollback.new()
   defp parse_words(["undo"]), do: Command.Rollback.new()
   defp parse_words(["emergency", "move" | rest]), do: parse_invalidate(:ownship, rest)
+
+  defp parse_words(["aim", "at" | name]), do: parse_object(name) |> parse_aim(nil)
+  defp parse_words(["aim", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
+  defp parse_words(["fire", "at" | name]), do: parse_object(name) |> parse_aim(nil)
+  defp parse_words(["fire", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
 
   defp parse_words(["disable", idstr]) do
     with {id, ""} <- Integer.parse(idstr) do
@@ -131,6 +137,16 @@ defmodule Boom.CommandParser do
         Observation.Invalidate.new(target),
         Observation.At.new(block, target)
       ])
+    end
+  end
+
+  defp parse_aim(target, nil) do
+    Command.Aim.new(target, Ammo.Types.auto_suggest())
+  end
+
+  defp parse_aim(target, ammo) do
+    with {:ok, ammo} <- Ammo.Types.fetch(ammo) do
+      Command.Aim.new(target, [ammo])
     end
   end
 
