@@ -45,7 +45,6 @@ defmodule Boom.Scene.Home do
   @sector_label_colour {255, 255, 255, 192}
 
   @coords_tooltip_offset {5, 5}
-  @coords_tooltip_line_height 30
 
   @min_padding 10
   @scroll_delay 20
@@ -53,6 +52,7 @@ defmodule Boom.Scene.Home do
 
   @font :roboto
   @font_size 20
+  @line_height 30
 
   {:ok, asset_hash} = Scenic.Assets.Static.to_hash(@font)
   {:ok, font_data} = Scenic.Assets.Static.load(asset_hash)
@@ -228,6 +228,8 @@ defmodule Boom.Scene.Home do
     width = grid_width * zoom + 1
     height = grid_height * zoom + 1
 
+    obj_geoms = collect_object_geometries()
+
     graph =
       Graph.build(font: @font, font_size: @font_size)
       |> P.group(
@@ -236,10 +238,11 @@ defmodule Boom.Scene.Home do
           |> draw_lines(:minor, minor_grid_lines(), @minor_line_stroke, zoom, width, height)
           |> draw_lines(:major, major_grid_lines(), @major_line_stroke, zoom, width, height)
           |> label_sectors(zoom)
-          |> draw_object_geometries(zoom)
+          |> draw_object_geometries(obj_geoms, zoom)
         end,
         id: :map
       )
+      |> build_bottom_legend(obj_geoms, state.viewport_size)
       # Placeholder:
       |> P.group(fn g -> g end, id: :coords)
 
@@ -274,10 +277,18 @@ defmodule Boom.Scene.Home do
     end)
   end
 
-  defp draw_object_geometries(graph, zoom) do
+  defp collect_object_geometries do
     Boom.ObjectRegistry.all_solutions()
-    |> Enum.reduce(graph, fn {name, geometry, _boxes}, gr ->
+    |> Enum.map(fn {name, geometry, _boxes} ->
       colour = pick_colour(name)
+      title = Boom.Object.object_title(name)
+      {title, colour, geometry}
+    end)
+  end
+
+  defp draw_object_geometries(graph, geoms, zoom) do
+    geoms
+    |> Enum.reduce(graph, fn {_title, colour, geometry}, gr ->
       draw_polygon(gr, geometry, zoom, fill: colour, stroke: {2, brighter(colour)})
     end)
   end
@@ -297,11 +308,11 @@ defmodule Boom.Scene.Home do
 
     case Grid.subdivision_at(floor(grid_x), floor(grid_y)) do
       {:ok, block} ->
-        {legend, max_width} = build_legend({grid_x, grid_y})
+        {legend, max_width} = build_tooltip_legend({grid_x, grid_y})
 
         coords_width = FontMetrics.width(block.name, @font_size, @font_metrics)
         width = (35 + max_width) |> max(coords_width + 10)
-        height = @coords_tooltip_line_height * (Enum.count(legend) + 1)
+        height = @line_height * (Enum.count(legend) + 1)
 
         graph
         |> Graph.delete(:coords)
@@ -310,7 +321,7 @@ defmodule Boom.Scene.Home do
             g
             |> P.rect({width, height}, fill: :black, stroke: {2, :white})
             |> P.text(block.name, translate: {5, 22})
-            |> add_legend(legend)
+            |> add_tooltip_legend(legend)
           end,
           id: :coords,
           translate: cursor |> coords_add(@coords_tooltip_offset)
@@ -468,7 +479,7 @@ defmodule Boom.Scene.Home do
     |> Enum.uniq()
   end
 
-  defp build_legend(grid_coords) do
+  defp build_tooltip_legend(grid_coords) do
     world_coords = Grid.grid_to_geo_coords(grid_coords)
 
     Boom.ObjectRegistry.all_solutions()
@@ -497,11 +508,11 @@ defmodule Boom.Scene.Home do
     end)
   end
 
-  defp add_legend(graph, legend) do
+  defp add_tooltip_legend(graph, legend) do
     legend
     |> Enum.with_index(1)
     |> Enum.reduce(graph, fn {{colour, title}, line_number}, gr ->
-      vert_offset = line_number * @coords_tooltip_line_height
+      vert_offset = line_number * @line_height
 
       gr
       |> P.rect({20, 20},
@@ -511,5 +522,38 @@ defmodule Boom.Scene.Home do
       )
       |> P.text(title, translate: {30, vert_offset + 19})
     end)
+  end
+
+  defp build_bottom_legend(graph, obj_geoms, {viewport_width, viewport_height}) do
+    padding = 20
+
+    obj_geoms
+    |> Enum.sort()
+    |> Enum.reduce(
+      {graph, padding, viewport_height - padding},
+      fn {title, colour, _geom}, {gr, x_offset, y_offset} ->
+        width = FontMetrics.width(title, @font_size, @font_metrics) + 40
+
+        {x_offset, y_offset} =
+          if x_offset + width + padding > viewport_width do
+            # reset to start of line above
+            {padding, y_offset - @line_height}
+          else
+            {x_offset, y_offset}
+          end
+
+        gr =
+          gr
+          |> P.rect({20, 20},
+            fill: colour,
+            stroke: {2, brighter(colour)},
+            translate: {x_offset, y_offset - 20}
+          )
+          |> P.text(title, translate: {x_offset + 25, y_offset})
+
+        {gr, x_offset + width, y_offset}
+      end
+    )
+    |> then(fn {graph, _x, _y} -> graph end)
   end
 end
