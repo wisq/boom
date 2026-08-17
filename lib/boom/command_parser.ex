@@ -20,8 +20,13 @@ defmodule Boom.CommandParser do
   end
 
   defp parse_words(["list"]), do: Command.List.new()
+
   defp parse_words(["rollback"]), do: Command.Rollback.new()
   defp parse_words(["undo"]), do: Command.Rollback.new()
+
+  defp parse_words(["RESET"]), do: Command.Reset.new()
+  defp parse_words(["CLEAR"]), do: Command.Reset.new()
+
   defp parse_words(["emergency", "move" | rest]), do: parse_invalidate(:ownship, rest)
 
   defp parse_words(["describe" | name]), do: parse_object(name) |> Command.Describe.new()

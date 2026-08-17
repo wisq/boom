@@ -31,4 +31,11 @@ defmodule Boom.ObjectSupervisor do
       {:error, _} = err -> err
     end)
   end
+
+  def kill_all do
+    DynamicSupervisor.which_children(__MODULE__)
+    |> Enum.each(fn {:undefined, pid, :worker, [Object]} ->
+      DynamicSupervisor.terminate_child(__MODULE__, pid)
+    end)
+  end
 end

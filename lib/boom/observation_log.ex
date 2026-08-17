@@ -101,6 +101,8 @@ defmodule Boom.ObservationLog do
     end
   end
 
+  def reset(pid \\ __MODULE__), do: GenServer.call(pid, :reset)
+
   @impl true
   def init(ets) when is_atom(ets) do
     :ets.new(ets, [:set, :protected, :named_table])
@@ -137,5 +139,11 @@ defmodule Boom.ObservationLog do
     end)
 
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call(:reset, _from, %State{ets: ets}) do
+    :ets.delete_all_objects(ets)
+    {:reply, :ok, %State{ets: ets}}
   end
 end
