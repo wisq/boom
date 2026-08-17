@@ -148,21 +148,24 @@ defmodule Boom.Object do
   end
 
   @impl true
-  def handle_info({:observation_added, name}, %State{name: name} = state) do
-    Logger.debug(log_prefix(state) <> "Recalculating due to new observation")
-    send(self(), :recalculate)
+  def handle_info({:observation_added, obj_name}, %State{name: my_name} = state) do
+    if obj_name == my_name do
+      Logger.debug(log_prefix(state) <> "Recalculating due to new observation")
+      send(self(), :recalculate)
+    end
+
     {:noreply, state}
   end
 
   @impl true
-  def handle_info({:observation_disabled, name}, %State{name: name} = state) do
-    Logger.debug(log_prefix(state) <> "Recalculating due to observation being disabled")
-    send(self(), :recalculate)
+  def handle_info({:observation_disabled, obj_name}, %State{name: my_name} = state) do
+    if obj_name == my_name do
+      Logger.debug(log_prefix(state) <> "Recalculating due to observation being disabled")
+      send(self(), :recalculate)
+    end
+
     {:noreply, state}
   end
-
-  @impl true
-  def handle_info({:observation_added, _}, state), do: {:noreply, state}
 
   defp with_cache(observations, cache) do
     observations
