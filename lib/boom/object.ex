@@ -68,7 +68,7 @@ defmodule Boom.Object do
   end
 
   def describe(name) when is_object_name(name) do
-    title = generate_title(name)
+    title = object_title(name)
 
     case ObjectRegistry.solution(name) |> describe_solution(%{}) do
       :silent -> [title, ": Pending."]
@@ -82,7 +82,7 @@ defmodule Boom.Object do
       PubSub.subscribe(self(), :object_registry)
       PubSub.subscribe(self(), :observation_log)
       send(self(), :recalculate)
-      {:ok, %State{name: name, title: generate_title(name)}}
+      {:ok, %State{name: name, title: object_title(name)}}
     end
   end
 
@@ -287,8 +287,8 @@ defmodule Boom.Object do
   defp count_cells(20), do: "twenty"
   defp count_cells(n) when n > 20, do: "#{n}"
 
-  defp generate_title(:ownship), do: "Iron Nest"
-  defp generate_title(name), do: :string.titlecase(name)
+  def object_title(:ownship), do: "Iron Nest"
+  def object_title(name), do: :string.titlecase(name)
 
   defp origin_name(:ownship), do: "Iron Nest"
   defp origin_name(name), do: name

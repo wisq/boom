@@ -80,6 +80,26 @@ defmodule Boom.Grid do
   def block_by_name(name),
     do: :persistent_term.get(@blocks_by_name) |> Map.fetch(String.upcase(name))
 
+  def geo_coords_to_grid({x, y}) do
+    {_grid_width, grid_height} = grid_size()
+    geometry_scale = geometry_scale()
+
+    {
+      x / geometry_scale,
+      grid_height - y / geometry_scale
+    }
+  end
+
+  def grid_to_geo_coords({x, y}) do
+    {_grid_width, grid_height} = grid_size()
+    geometry_scale = geometry_scale()
+
+    {
+      x * geometry_scale,
+      (grid_height - y) * geometry_scale
+    }
+  end
+
   defp decimal_to_integer(decimal) do
     float = Decimal.to_float(decimal)
     int = round(float)

@@ -8,7 +8,6 @@ defmodule Boom.Grid.Block do
   )
 
   alias __MODULE__
-  alias Boom.Grid
   alias Boom.DB
 
   def from_db(%DB.Sector{} = sector) do
@@ -55,16 +54,6 @@ defmodule Boom.Grid.Block do
           {x1, y1}
         ]
       ]
-    }
-  end
-
-  def geo_coord_to_grid({x, y}) do
-    {_grid_width, grid_height} = Grid.grid_size()
-    geometry_scale = Grid.geometry_scale()
-
-    {
-      x / geometry_scale,
-      grid_height - y / geometry_scale
     }
   end
 end

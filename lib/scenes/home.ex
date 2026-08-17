@@ -38,16 +38,26 @@ defmodule Boom.Scene.Home do
   alias Scenic.Primitives, as: P
   alias Boom.Grid
   alias Boom.Grid.Block
+  alias Boom.DB.GeoEngine
 
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
 
   @coords_tooltip_offset {5, 5}
+  @coords_tooltip_line_height 30
 
   @min_padding 10
   @scroll_delay 20
   @zoom_factor 1.05
+
+  @font :roboto
+  @font_size 20
+
+  {:ok, asset_hash} = Scenic.Assets.Static.to_hash(@font)
+  {:ok, font_data} = Scenic.Assets.Static.load(asset_hash)
+  {:ok, font_metrics} = TruetypeMetrics.parse(font_data, :roboto)
+  @font_metrics font_metrics
 
   @impl true
   def init(%Scene{} = scene, _param, _opts) do
@@ -219,7 +229,7 @@ defmodule Boom.Scene.Home do
     height = grid_height * zoom + 1
 
     graph =
-      Graph.build(font: :roboto, font_size: 20)
+      Graph.build(font: @font, font_size: @font_size)
       |> P.group(
         fn g ->
           g
@@ -230,16 +240,8 @@ defmodule Boom.Scene.Home do
         end,
         id: :map
       )
-      |> P.group(
-        fn g ->
-          g
-          |> P.rect({80, 30}, fill: :black, stroke: {2, :white})
-          |> P.text("", translate: {5, 22}, id: :coords_text)
-        end,
-        id: :coords,
-        # Deliberately offscreen by default:
-        translate: {-1000, -1000}
-      )
+      # Placeholder:
+      |> P.group(fn g -> g end, id: :coords)
 
     %State{state | graph: graph, map_size: {width, height}}
   end
@@ -274,7 +276,7 @@ defmodule Boom.Scene.Home do
 
   defp draw_object_geometries(graph, zoom) do
     Boom.ObjectRegistry.all_solutions()
-    |> Enum.reduce(graph, fn {name, geometry}, gr ->
+    |> Enum.reduce(graph, fn {name, geometry, _boxes}, gr ->
       colour = pick_colour(name)
       draw_polygon(gr, geometry, zoom, fill: colour, stroke: {2, brighter(colour)})
     end)
@@ -284,17 +286,33 @@ defmodule Boom.Scene.Home do
     Graph.modify(graph, :map, &Primitive.put_transform(&1, :translate, offset))
   end
 
-  defp update_coords(%Graph{} = graph, {cursor_x, cursor_y} = cursor, {offset_x, offset_y}, zoom) do
-    grid_x = ((cursor_x - offset_x) / zoom) |> floor()
-    grid_y = ((cursor_y - offset_y) / zoom) |> floor()
+  defp update_coords(
+         %Graph{} = graph,
+         {cursor_x, cursor_y} = cursor,
+         {offset_x, offset_y},
+         zoom
+       ) do
+    grid_x = (cursor_x - offset_x) / zoom
+    grid_y = (cursor_y - offset_y) / zoom
 
-    case Grid.subdivision_at(grid_x, grid_y) do
+    case Grid.subdivision_at(floor(grid_x), floor(grid_y)) do
       {:ok, block} ->
+        {legend, max_width} = build_legend({grid_x, grid_y})
+
+        width = (35 + max_width) |> max(80)
+        height = @coords_tooltip_line_height * (Enum.count(legend) + 1)
+
         graph
-        |> Graph.modify(:coords_text, &P.text(&1, block.name))
-        |> Graph.modify(
-          :coords,
-          &Primitive.put_transform(&1, :translate, cursor |> coords_add(@coords_tooltip_offset))
+        |> Graph.delete(:coords)
+        |> P.group(
+          fn g ->
+            g
+            |> P.rect({width, height}, fill: :black, stroke: {2, :white})
+            |> P.text(block.name, translate: {5, 22})
+            |> add_legend(legend)
+          end,
+          id: :coords,
+          translate: cursor |> coords_add(@coords_tooltip_offset)
         )
 
       :error ->
@@ -362,7 +380,7 @@ defmodule Boom.Scene.Home do
   @lightness_range {30.0, 70.0}
   @maxint32 2 ** 32
 
-  def pick_colour(:ownship), do: {:color_hsl, {0, 70.0, 70.0}}
+  def pick_colour(:ownship), do: {:color_hsl, {0, 100.0, 50.0}}
 
   def pick_colour(name) do
     <<hue_seed::32, sat_seed::32, light_seed::32, _::binary>> = :crypto.hash(:md5, name)
@@ -405,7 +423,7 @@ defmodule Boom.Scene.Home do
   defp geo_inner_outer_coords(%Geo.Polygon{coordinates: [outer]}), do: [{:outer, outer}]
 
   defp coords_to_path([coord | rest], zoom) do
-    {x, y} = Block.geo_coord_to_grid(coord)
+    {x, y} = Grid.geo_coords_to_grid(coord)
 
     [
       :begin,
@@ -417,7 +435,7 @@ defmodule Boom.Scene.Home do
   defp coords_to_path_rest([{_, _}], _), do: [:close_path]
 
   defp coords_to_path_rest([coord | rest], zoom) do
-    {x, y} = Block.geo_coord_to_grid(coord)
+    {x, y} = Grid.geo_coords_to_grid(coord)
 
     [
       {:line_to, x * zoom, y * zoom}
@@ -447,5 +465,50 @@ defmodule Boom.Scene.Home do
       ]
     end)
     |> Enum.uniq()
+  end
+
+  defp build_legend(grid_coords) do
+    world_coords = Grid.grid_to_geo_coords(grid_coords)
+
+    Boom.ObjectRegistry.all_solutions()
+    |> Enum.filter(fn {_name, solution, boxes} ->
+      is_geometry(solution) && GeoEngine.in_bounds?(world_coords, boxes)
+    end)
+    |> GeoEngine.filter_intersects(%Geo.Point{coordinates: world_coords})
+    |> Enum.map(fn {name, _, _} ->
+      colour = pick_colour(name)
+      title = Boom.Object.object_title(name)
+      {colour, title}
+    end)
+    |> then(fn
+      [] ->
+        {[], 0}
+
+      legend ->
+        max_width =
+          legend
+          |> Enum.map(fn {_, title} ->
+            FontMetrics.width(title, @font_size, @font_metrics)
+          end)
+          |> Enum.max()
+
+        {legend, max_width}
+    end)
+  end
+
+  defp add_legend(graph, legend) do
+    legend
+    |> Enum.with_index(1)
+    |> Enum.reduce(graph, fn {{colour, title}, line_number}, gr ->
+      vert_offset = line_number * @coords_tooltip_line_height
+
+      gr
+      |> P.rect({20, 20},
+        fill: colour,
+        stroke: {2, brighter(colour)},
+        translate: {5, vert_offset + 2}
+      )
+      |> P.text(title, translate: {30, vert_offset + 19})
+    end)
   end
 end
