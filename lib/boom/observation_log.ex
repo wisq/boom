@@ -69,7 +69,7 @@ defmodule Boom.ObservationLog do
     Boom.output([
       IO.ANSI.light_green(),
       to_string(observation),
-      IO.ANSI.normal()
+      IO.ANSI.reset()
     ])
 
     target

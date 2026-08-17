@@ -53,21 +53,28 @@ defmodule Boom.Command.Aim do
   defp try_ammo([ammo | rest], ownship_geom, target_geom, potentials, target_area) do
     {best_id, area} = best_solution(potentials, ownship_geom, target_geom, ammo)
     best = potentials |> Enum.find(&(&1.id == best_id))
-    area_percent = 100 * area / target_area
+    area_ratio = area / target_area
 
     {charges, elevation} = best.elevation
-    distance = shot_distance(best.elevation) / 1000
+    distance = shot_distance(best.elevation)
 
-    output = [
-      "Using #{ammo.name} with\n",
-      "  charges = #{charges} powder charge\n",
-      "  bearing = #{format_float(best.bearing, 1)}°\n",
-      "  elevation = #{format_float(elevation, 2)}°\n",
-      "  distance = #{format_float(distance, 2)} km\n",
-      "has a hit probability of #{format_float(area_percent, 2)}%."
-    ]
+    output =
+      [
+        "Using #{ammo.name} with",
+        [
+          "  charges = ",
+          format_charges(charges) |> highlight(),
+          " powder charge",
+          if(charges == 1, do: "", else: "s")
+        ],
+        ["  bearing = ", format_bearing(best.bearing) |> highlight()],
+        ["  elevation = ", format_elevation(elevation) |> highlight()],
+        ["  distance = ", format_metres(distance)],
+        ["has a hit probability of ", format_percent(area_ratio), "."]
+      ]
+      |> Enum.intersperse("\n")
 
-    if area_percent >= 99.9 || rest == [] do
+    if area_ratio >= 0.999 || rest == [] do
       output
     else
       [output, "\n\n" | try_ammo(rest, ownship_geom, target_geom, potentials, target_area)]
@@ -224,5 +231,19 @@ defmodule Boom.Command.Aim do
     |> then(fn [best_id, area] -> {best_id, area} end)
   end
 
+  defp format_charges(1), do: "one"
+  defp format_charges(2), do: "two"
+  defp format_charges(3), do: "three"
+  defp format_charges(4), do: "four"
+  defp format_charges(5), do: "five"
+  defp format_charges(6), do: "six"
+  defp format_bearing(degrees), do: [format_float(degrees, 1), "°"]
+  defp format_elevation(degrees), do: [format_float(degrees, 2), "°"]
+  defp format_percent(1.0), do: "100%"
+  defp format_percent(ratio), do: [format_float(ratio * 100, 1), "%"]
+  defp format_metres(m) when m >= 1000, do: [format_float(m / 1000, 2), " km"]
+  defp format_metres(m) when m < 1000, do: [round(m), " m"]
+
   defp format_float(float, decimals), do: :erlang.float_to_binary(float, decimals: decimals)
+  defp highlight(iodata), do: [IO.ANSI.light_green(), iodata, IO.ANSI.reset()]
 end
