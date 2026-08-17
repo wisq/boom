@@ -10,6 +10,12 @@ defmodule Boom.DB.GeoEngine do
   def bounding_boxes(%Geo.LineString{coordinates: c}), do: [bbox_coords(c)]
   def bounding_boxes(%Geo.Polygon{coordinates: [outer | _]}), do: [bbox_coords(outer)]
 
+  def bounding_boxes(%Geo.MultiPolygon{} = multi) do
+    multi
+    |> split_multipolygon()
+    |> Enum.flat_map(&bounding_boxes/1)
+  end
+
   defp bbox_coords(coords) do
     {xs, ys} = Enum.unzip(coords)
     {Enum.min_max(xs), Enum.min_max(ys)}
