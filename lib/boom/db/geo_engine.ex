@@ -1,4 +1,5 @@
 defmodule Boom.DB.GeoEngine do
+  require Logger
   import Ecto.Query, only: [from: 2]
 
   alias Boom.DB.Repo
@@ -92,7 +93,7 @@ defmodule Boom.DB.GeoEngine do
   @median_sql """
   (
     WITH grid AS (
-      SELECT (ST_SquareGrid(?::double precision, ?::geometry)).geom AS cell_geom
+      SELECT (ST_HexagonGrid(?::double precision, ?::geometry)).geom AS cell_geom
     ),
     points AS (
       SELECT ST_Centroid(grid.cell_geom) AS pt_geom
@@ -104,12 +105,27 @@ defmodule Boom.DB.GeoEngine do
   )
   """
 
-  def median(geom, size \\ 10.0) do
+  @min_grid_size 0.1
+
+  def median(geom, size \\ 10.0) when size >= @min_grid_size do
     from(
       q in fragment(@median_sql, ^size, ^geom, ^geom),
       select: fragment("median")
     )
     |> Repo.one()
+    |> then(fn
+      nil ->
+        if size <= @min_grid_size do
+          raise "No median found: #{inspect(geom)}"
+        else
+          new_size = (size / 2) |> max(@min_grid_size)
+          Logger.warning("No geometric median, trying size #{new_size} ...")
+          median(geom, new_size)
+        end
+
+      %Geo.Point{} = p ->
+        p
+    end)
   end
 
   @subdivisions_sql """
