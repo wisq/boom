@@ -16,21 +16,27 @@ defmodule Boom.Observation.Range do
 
   import Ecto.Query, only: [from: 2]
   alias Boom.DB.Repo
+  alias Boom.DB.GeoEngine
 
   def build_solution(%Observation{type: __MODULE__, params: {range, error}}, origin_geom) do
     min_range = range - error
     max_range = range + error
 
-    from(
-      q in fragment(
-        "SELECT Range_Ring(?::geometry, ?::double precision, ?::double precision) AS geom",
-        ^origin_geom,
-        ^min_range,
-        ^max_range
-      ),
-      select: fragment("geom")
-    )
-    |> Repo.one()
+    origin_geom
+    |> GeoEngine.split_multipolygon()
+    |> Enum.map(fn polygon ->
+      from(
+        q in fragment(
+          "SELECT Range_Ring(?::geometry, ?::double precision, ?::double precision) AS geom",
+          ^polygon,
+          ^min_range,
+          ^max_range
+        ),
+        select: fragment("geom")
+      )
+      |> Repo.one()
+    end)
+    |> Enum.reduce(&GeoEngine.union/2)
   end
 
   def command_text(%Observation{
