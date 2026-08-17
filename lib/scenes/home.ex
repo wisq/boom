@@ -547,7 +547,7 @@ defmodule Boom.Scene.Home do
           |> P.rect({20, 20},
             fill: colour,
             stroke: {2, brighter(colour)},
-            translate: {x_offset, y_offset - 20}
+            translate: {x_offset, y_offset - 23}
           )
           |> P.text(title, translate: {x_offset + 25, y_offset})
 
