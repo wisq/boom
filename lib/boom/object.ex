@@ -67,6 +67,15 @@ defmodule Boom.Object do
     GenServer.start_link(__MODULE__, name, opts)
   end
 
+  def describe(name) when is_object_name(name) do
+    title = generate_title(name)
+
+    case ObjectRegistry.solution(name) |> describe_solution(%{}) do
+      :silent -> [title, ": Pending."]
+      iodata -> format_solution(iodata, title)
+    end
+  end
+
   @impl true
   def init(name) do
     with {:ok, _} <- ObjectRegistry.register(name) do
@@ -108,24 +117,11 @@ defmodule Boom.Object do
         {:noreply, state}
       else
         version = state.version + 1
-        blank_prefix = String.duplicate(" ", String.length(title) + 2)
 
-        describe_solution(solution, state)
+        describe_solution(solution, new_cache)
         |> then(fn
-          :silent ->
-            :noop
-
-          iodata ->
-            iodata
-            |> IO.iodata_to_binary()
-            |> String.split("\n")
-            |> Enum.with_index()
-            |> Enum.map(fn
-              {line, 0} -> [title, ": ", line]
-              {line, _} -> [blank_prefix, line]
-            end)
-            |> Enum.intersperse("\n")
-            |> Boom.output()
+          :silent -> :noop
+          iodata -> format_solution(iodata, title) |> Boom.output()
         end)
 
         ObjectRegistry.update(name, version, solution)
@@ -189,7 +185,7 @@ defmodule Boom.Object do
     "[#{inspect(__MODULE__)} #{inspect(name)}] "
   end
 
-  defp describe_solution(:unknown, %State{cache: cache}) do
+  defp describe_solution(:unknown, cache) do
     cache
     |> Map.values()
     |> Enum.filter(&(&1.solution == :unknown))
@@ -227,6 +223,20 @@ defmodule Boom.Object do
 
   defp describe_solution(geometry, _) when is_geometry(geometry) do
     ["Location ", describe_shape(geometry), ".\n", describe_targeting(geometry)]
+  end
+
+  defp format_solution(iodata, title) do
+    blank_prefix = String.duplicate(" ", String.length(title) + 2)
+
+    iodata
+    |> IO.iodata_to_binary()
+    |> String.split("\n")
+    |> Enum.with_index()
+    |> Enum.map(fn
+      {line, 0} -> [title, ": ", line]
+      {line, _} -> [blank_prefix, line]
+    end)
+    |> Enum.intersperse("\n")
   end
 
   defp describe_targeting(geometry) do

@@ -24,6 +24,10 @@ defmodule Boom.CommandParser do
   defp parse_words(["undo"]), do: Command.Rollback.new()
   defp parse_words(["emergency", "move" | rest]), do: parse_invalidate(:ownship, rest)
 
+  defp parse_words(["describe" | name]), do: parse_object(name) |> Command.Describe.new()
+  defp parse_words(["show" | name]), do: parse_object(name) |> Command.Describe.new()
+  defp parse_words(["where", "is" | name]), do: parse_object(name) |> Command.Describe.new()
+
   defp parse_words(["aim", "at" | name]), do: parse_object(name) |> parse_aim(nil)
   defp parse_words(["aim", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
   defp parse_words(["fire", "at" | name]), do: parse_object(name) |> parse_aim(nil)
