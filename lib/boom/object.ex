@@ -214,12 +214,13 @@ defmodule Boom.Object do
       |> Enum.with_index(1)
       |> Enum.map(fn {poly, index} ->
         [
-          "\n    Location #{index} ",
-          describe_shape(poly),
+          describe_shape(poly) |> :string.titlecase(),
           ".",
-          "\n    ",
+          "\n",
           describe_targeting(poly)
         ]
+        |> indent(4)
+        |> then(fn iodata -> ["\nLocation #{index}:\n" | iodata] end)
       end)
     ]
   end
@@ -304,7 +305,7 @@ defmodule Boom.Object do
     cond do
       total_subs == 1 ->
         [sub] = GeoEngine.grid_intersections(shape)
-        ["is ", sub.name]
+        ["is in ", sub.name]
 
       total_subs <= 5 ->
         subs =
@@ -315,7 +316,9 @@ defmodule Boom.Object do
         ["is in one of ", comma_list(subs, "or")]
 
       sectors > 3 ->
-        "spans #{total_subs} grid squares across #{sectors} sectors"
+        block = GeoEngine.centroid_grid_intersection(shape)
+        [sector_name | _] = block.name |> String.split()
+        "spans #{sectors} sectors around #{sector_name}"
 
       sectors > 1 ->
         by_sec =
@@ -324,14 +327,31 @@ defmodule Boom.Object do
             [count_cells(count), " in ", name]
           end)
 
-        ["spans #{total_subs} grid squares: ", comma_list(by_sec)]
+        [
+          "spans #{total_subs} grid squares",
+          case GeoEngine.centroid_grid_intersection(shape) do
+            %Grid.Block{name: n} -> " around #{n}"
+            nil -> ""
+          end,
+          " --\n    ",
+          comma_list(by_sec) |> :string.titlecase()
+        ]
+
+      total_subs == 100 ->
+        [{name, _}] = ints_by_sector
+        "is somewhere in sector #{name}"
 
       total_subs > 1 ->
         [{name, _}] = ints_by_sector
-        "is in one of #{total_subs} grid squares in sector #{name}"
 
-      true ->
-        "whee"
+        [
+          "is in one of #{total_subs} grid squares in sector ",
+          name,
+          case GeoEngine.centroid_grid_intersection(shape) do
+            %Grid.Block{name: n} -> ", centred around #{n}"
+            nil -> ""
+          end
+        ]
     end
   end
 
@@ -342,5 +362,15 @@ defmodule Boom.Object do
     keys1 = Map.keys(map1) |> Enum.sort()
     keys2 = Map.keys(map2) |> Enum.sort()
     keys1 != keys2
+  end
+
+  defp indent(iodata, count) do
+    spaces = String.duplicate(" ", count)
+
+    iodata
+    |> IO.iodata_to_binary()
+    |> String.split("\n")
+    |> Enum.map(fn line -> [spaces, line] end)
+    |> Enum.intersperse("\n")
   end
 end

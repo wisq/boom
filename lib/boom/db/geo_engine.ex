@@ -116,6 +116,23 @@ defmodule Boom.DB.GeoEngine do
     |> Repo.one()
   end
 
+  def centroid_grid_intersection(geom) do
+    from(
+      s in DB.Subdivision,
+      where: fragment("ST_Intersects(?, ST_Centroid(?::geometry))", s.geom, ^geom),
+      select: {s.global_x, s.global_y}
+    )
+    |> Repo.one()
+    |> then(fn
+      {x, y} ->
+        {:ok, block} = Boom.Grid.subdivision_at(x, y)
+        block
+
+      nil ->
+        nil
+    end)
+  end
+
   def buffer(geom, amount) do
     from(
       q in fragment(
