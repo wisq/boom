@@ -152,6 +152,7 @@ defmodule Boom.CommandParser do
 
   defp parse_object(["iron", "nest"]), do: :ownship
   defp parse_object(["nest"]), do: :ownship
+  defp parse_object(["ownship"]), do: :ownship
 
   defp parse_object(words) do
     name = Enum.join(words, " ")

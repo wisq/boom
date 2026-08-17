@@ -275,6 +275,7 @@ defmodule Boom.Object do
   defp count_cells(18), do: "eighteen"
   defp count_cells(19), do: "nineteen"
   defp count_cells(20), do: "twenty"
+  defp count_cells(n) when n > 20, do: "#{n}"
 
   defp generate_title(:ownship), do: "Iron Nest"
   defp generate_title(name), do: :string.titlecase(name)
