@@ -299,7 +299,8 @@ defmodule Boom.Scene.Home do
       {:ok, block} ->
         {legend, max_width} = build_legend({grid_x, grid_y})
 
-        width = (35 + max_width) |> max(80)
+        coords_width = FontMetrics.width(block.name, @font_size, @font_metrics)
+        width = (35 + max_width) |> max(coords_width + 10)
         height = @coords_tooltip_line_height * (Enum.count(legend) + 1)
 
         graph
