@@ -4,6 +4,8 @@ defmodule Boom do
   """
   require Logger
 
+  @default_port 2666
+
   def start(_type, _args) do
     # load the viewport configuration from config
     main_viewport_config =
@@ -53,10 +55,22 @@ defmodule Boom do
     end
   end
 
-  defp listen_config do
+  defp listen_config, do: listen_config_from_env() || listen_config_from_app()
+
+  defp listen_config_from_env do
+    case System.get_env("BOOM_LISTEN") do
+      "UNIX:" <> path -> {:unix, path}
+      "TCP4:" <> ip_port -> parse_tcp4(ip_port)
+      "TCP6:" <> ip_port -> parse_tcp6(ip_port)
+      nil -> nil
+    end
+  end
+
+  defp listen_config_from_app do
     case Application.get_env(:boom, :listen_on, :guess) do
       {:unix, _} = unix -> unix
-      {:tcp, _, _} = tcp -> tcp
+      {:tcp4, addr, port} -> {:tcp4, parse_ip(:v4, addr), parse_port(port)}
+      {:tcp6, addr, port} -> {:tcp6, parse_ip(:v6, addr), parse_port(port)}
       :guess -> guess_listen_config()
     end
   end
@@ -89,9 +103,9 @@ defmodule Boom do
   defp fallback_listen_tcp do
     # Check if IPv6 is available.
     with {:ok, _} <- :inet.getaddr(~c'localhost', :inet6) do
-      {:tcp6, :loopback, 2666}
+      {:tcp6, :loopback, @default_port}
     else
-      {:error, _} -> {:tcp4, :loopback, 2666}
+      {:error, _} -> {:tcp4, :loopback, @default_port}
     end
   end
 
@@ -99,5 +113,68 @@ defmodule Boom do
     {output, 0} = System.cmd("id", ["-u"])
     {uid, "\n"} = Integer.parse(output)
     uid
+  end
+
+  defp parse_tcp4(ip_port) do
+    case String.split(ip_port, ":", parts: 2) do
+      [ip, port] -> {:tcp4, parse_ip(:v4, ip), parse_port(port)}
+      [ip] -> {:tcp4, parse_ip(:v4, ip), @default_port}
+    end
+  end
+
+  defp parse_tcp6("[" <> ip_port) do
+    case String.split(ip_port, "]", parts: 2) do
+      [ip, ":" <> port] -> {:tcp6, parse_ip(:v6, ip), parse_port(port)}
+      [ip, ""] -> {:tcp6, parse_ip(:v6, ip), @default_port}
+    end
+  end
+
+  defp parse_tcp6(ip), do: parse_ip(:v6, ip)
+
+  defp parse_ip(_, ""), do: :loopback
+  defp parse_ip(_, "*"), do: :any
+
+  defp parse_ip(:v4, addr) when is_tuple(addr) do
+    case :inet.is_ipv4_address(addr) do
+      true -> addr
+      false -> raise "Not a valid IPv4 address: #{inspect(addr)}"
+    end
+  end
+
+  defp parse_ip(:v4, str) when is_binary(str) do
+    str
+    |> String.to_charlist()
+    |> :inet.parse_ipv4strict_address()
+    |> then(fn
+      {:ok, addr} -> addr
+      {:error, _} -> raise "Not a valid IPv4 address: #{str}"
+    end)
+  end
+
+  defp parse_ip(:v6, addr) when is_tuple(addr) do
+    case :inet.is_ipv6_address(addr) do
+      true -> addr
+      false -> raise "Not a valid IPv6 address: #{inspect(addr)}"
+    end
+  end
+
+  defp parse_ip(:v6, str) when is_binary(str) do
+    str
+    |> String.to_charlist()
+    |> :inet.parse_ipv6strict_address()
+    |> then(fn
+      {:ok, addr} -> addr
+      {:error, _} -> raise "Not a valid IPv6 address: #{str}"
+    end)
+  end
+
+  defp parse_port(:default), do: @default_port
+  defp parse_port(port) when is_integer(port), do: port
+
+  defp parse_port(str) when is_binary(str) do
+    case Integer.parse(str) do
+      {port, ""} -> port
+      _ -> raise "Not a valid port number: #{str}"
+    end
   end
 end
