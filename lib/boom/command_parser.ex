@@ -14,6 +14,7 @@ defmodule Boom.CommandParser do
     |> parse_words()
     |> then(fn
       %Command{} = cmd -> {:ok, cmd}
+      {:error, :unknown_command} -> {:error, "Unknown command."}
       {:error, _} = err -> err
     end)
   end
@@ -28,6 +29,19 @@ defmodule Boom.CommandParser do
   defp parse_words(["fire", "at" | name]), do: parse_object(name) |> parse_aim(nil)
   defp parse_words(["fire", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
 
+  defp parse_words(["target" | rest] = words) do
+    case lookahead(rest, ["with"]) do
+      {name, ["with" | ammo]} ->
+        parse_object(name) |> parse_aim(ammo)
+
+      :no_match ->
+        case parse_fallback(words) do
+          %Command{} = cmd -> cmd
+          {:error, :unknown_command} -> parse_object(rest) |> parse_aim(nil)
+        end
+    end
+  end
+
   defp parse_words(["disable", idstr]) do
     with {id, ""} <- Integer.parse(idstr) do
       Command.Disable.new(id)
@@ -36,7 +50,9 @@ defmodule Boom.CommandParser do
     end
   end
 
-  defp parse_words(words) do
+  defp parse_words(words), do: parse_fallback(words)
+
+  defp parse_fallback(words) do
     case lookahead(words, ["is", "has"]) do
       {name, ["is", "at" | rest]} -> parse_object(name) |> parse_at(rest)
       {name, ["is", "in" | rest]} -> parse_object(name) |> parse_at(rest)
@@ -45,7 +61,7 @@ defmodule Boom.CommandParser do
       {name, ["is", "range" | rest]} -> parse_object(name) |> parse_range(rest)
       {name, ["is" | rest]} -> parse_object(name) |> parse_is(rest)
       {name, ["has", "moved" | rest]} -> parse_object(name) |> parse_invalidate(rest)
-      _ -> {:error, "Unknown command."}
+      _ -> {:error, :unknown_command}
     end
   end
 
@@ -145,8 +161,10 @@ defmodule Boom.CommandParser do
   end
 
   defp parse_aim(target, ammo) do
-    with {:ok, ammo} <- Ammo.Types.fetch(ammo) do
+    with {:ok, ammo} <- parse_ammo(ammo) do
       Command.Aim.new(target, [ammo])
+    else
+      {:error, :unknown_ammo, name} -> {:error, "Unknown ammo: #{inspect(name)}"}
     end
   end
 
@@ -232,6 +250,15 @@ defmodule Boom.CommandParser do
     case Compass.parse(str) do
       {:ok, _bearing, _error} -> true
       {:error, _err, _str} -> false
+    end
+  end
+
+  defp parse_ammo(words) when is_list(words), do: words |> Enum.join(" ") |> parse_ammo()
+
+  defp parse_ammo(name) when is_binary(name) do
+    case Ammo.Types.fetch(name) do
+      {:ok, %Ammo{} = ammo} -> {:ok, ammo}
+      :error -> {:error, :unknown_ammo, name}
     end
   end
 end
