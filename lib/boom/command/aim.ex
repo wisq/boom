@@ -11,14 +11,15 @@ defmodule Boom.Command.Aim do
   # Try the closest 19 elevations:
   @try_elevation_range -9..9
 
-  def new(target, [%Ammo{} | _] = ammos) when is_object_name(target) do
+  def new(target, min_charges, [%Ammo{} | _] = ammos)
+      when (is_object_name(target) and is_integer(min_charges)) or is_nil(min_charges) do
     %Command{
       module: __MODULE__,
-      args: [target, ammos]
+      args: [target, min_charges, ammos]
     }
   end
 
-  def run(target, [%Ammo{} | _] = ammos) when is_object_name(target) do
+  def run(target, min_charges, [%Ammo{} | _] = ammos) when is_object_name(target) do
     with {:ok, ownship_geom} <- get_solution(:ownship),
          {:ok, target_geom} <- get_solution(target) do
       %Geo.Point{coordinates: ownship_median} = GeoEngine.median(ownship_geom)
@@ -26,13 +27,15 @@ defmodule Boom.Command.Aim do
 
       ideal_bearing = ownship_median |> angle_to(target_median)
       ideal_distance = ownship_median |> distance_to(target_median)
-      {powder_charges, ideal_elevation} = elevation_for(ideal_distance)
+      {powder_charges, ideal_elevation} = elevation_for(ideal_distance, min_charges)
 
       mid_bearing = Float.round(ideal_bearing, 1)
       mid_elevation = Float.round(ideal_elevation, 2)
 
       try_bearings = @try_bearing_range |> Enum.map(fn b -> {mid_bearing + b * 0.1, b} end)
-      try_elevations = notch_span(@try_elevation_range, {powder_charges, mid_elevation})
+
+      try_elevations =
+        notch_span(@try_elevation_range, {powder_charges, mid_elevation}, min_charges)
 
       potentials = potential_solutions(try_bearings, try_elevations)
       target_area = GeoEngine.area(target_geom)
@@ -105,9 +108,9 @@ defmodule Boom.Command.Aim do
   # elevation = distance_km * 12 / powder_charges
   # max elevation of 60°
   # which gives us a max distance of 30km
-  defp elevation_for(distance) when distance < 30000.0 do
+  defp elevation_for(distance, min_charges) when distance < 30000.0 do
     elevation = distance / 1000 * 12
-    powder_charges = elevation |> ceil() |> div(60) |> Kernel.+(1)
+    powder_charges = min_charges || elevation |> ceil() |> div(60) |> Kernel.+(1)
     {powder_charges, elevation / powder_charges}
   end
 
@@ -125,9 +128,9 @@ defmodule Boom.Command.Aim do
     {x, y}
   end
 
-  defp notch_span(min..max//span, {_, _} = pow_elev) do
-    lower = -1..min//-span |> repeatedly(&notch_down/1, pow_elev)
-    upper = 1..max//span |> repeatedly(&notch_up/1, pow_elev)
+  defp notch_span(min..max//span, {_, _} = pow_elev, min_charges) do
+    lower = -1..min//-span |> repeatedly(&notch_down/2, pow_elev, min_charges)
+    upper = 1..max//span |> repeatedly(&notch_up/2, pow_elev, min_charges)
 
     [
       lower |> Enum.with_index(1) |> Enum.map(fn {v, i} -> {v, -i} end),
@@ -137,26 +140,29 @@ defmodule Boom.Command.Aim do
     |> Enum.reduce(&Kernel.++/2)
   end
 
-  defp repeatedly([], _, _), do: []
+  defp repeatedly([], _, _, _), do: []
 
-  defp repeatedly([_ | rest], fun, value) do
-    next_value = fun.(value)
-    [next_value | repeatedly(rest, fun, next_value)]
+  defp repeatedly([_ | rest], fun, {_, _} = value, min) do
+    next_value = fun.(value, min)
+    [next_value | repeatedly(rest, fun, next_value, min)]
   end
 
-  defp repeatedly(_.._//_ = range, fun, value),
-    do: range |> Enum.to_list() |> repeatedly(fun, value)
+  defp repeatedly(_.._//_ = range, fun, {_, _} = value, min),
+    do: range |> Enum.to_list() |> repeatedly(fun, value, min)
 
-  defp notch_up({charges, elevation}) do
+  defp notch_up({charges, elevation}, _) do
     case elevation + 0.01 do
       e when e <= 60 -> {charges, e}
       e when e > 60 -> {charges + 1, e * charges / (charges + 1)}
     end
   end
 
-  defp notch_down({1, elevation}), do: {1, elevation - 0.01}
+  defp notch_down({1, elevation}, _), do: {1, elevation - 0.01}
 
-  defp notch_down({charges, elevation}) when charges > 1 do
+  # At min_charges already:
+  defp notch_down({charges, elevation}, charges), do: {charges, elevation - 0.01}
+
+  defp notch_down({charges, elevation}, _) do
     new_elevation = elevation - 0.01
 
     case new_elevation * charges / (charges - 1) do

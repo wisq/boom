@@ -33,20 +33,39 @@ defmodule Boom.CommandParser do
   defp parse_words(["show" | name]), do: parse_object(name) |> Command.Describe.new()
   defp parse_words(["where", "is" | name]), do: parse_object(name) |> Command.Describe.new()
 
-  defp parse_words(["aim", "at" | name]), do: parse_object(name) |> parse_aim(nil)
-  defp parse_words(["aim", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
-  defp parse_words(["fire", "at" | name]), do: parse_object(name) |> parse_aim(nil)
-  defp parse_words(["fire", ammo, "at" | name]), do: parse_object(name) |> parse_aim(ammo)
+  defp parse_words(["aim", "at" | rest]), do: parse_aim(nil, rest)
+  defp parse_words(["aim", ammo, "at" | rest]), do: parse_aim(ammo, rest)
+  defp parse_words(["fire", "at" | rest]), do: parse_aim(nil, rest)
+  defp parse_words(["fire", ammo, "at" | rest]), do: parse_aim(ammo, rest)
+
+  @default_ammo Ammo.Types.auto_suggest()
 
   defp parse_words(["target" | rest] = words) do
     case lookahead(rest, ["with"]) do
-      {name, ["with" | ammo]} ->
-        parse_object(name) |> parse_aim(ammo)
+      {name, ["with", count, "charges"]} ->
+        with {:ok, charges} <- parse_charges(count) do
+          parse_object(name) |> Command.Aim.new(charges, @default_ammo)
+        end
+
+      {name, ["with", ammo, "and", count, "charges"]} ->
+        with {:ok, charges} <- parse_charges(count),
+             {:ok, ammo} <- parse_ammo(ammo) do
+          parse_object(name) |> Command.Aim.new(charges, ammo)
+        end
+
+      {name, ["with", ammo]} ->
+        with {:ok, ammo} <- parse_ammo(ammo) do
+          parse_object(name) |> Command.Aim.new(nil, ammo)
+        end
 
       :no_match ->
         case parse_fallback(words) do
-          %Command{} = cmd -> cmd
-          {:error, :unknown_command} -> parse_object(rest) |> parse_aim(nil)
+          %Command{} = cmd ->
+            cmd
+
+          {:error, :unknown_command} ->
+            parse_object(rest)
+            |> Command.Aim.new(nil, @default_ammo)
         end
     end
   end
@@ -165,15 +184,17 @@ defmodule Boom.CommandParser do
     end
   end
 
-  defp parse_aim(target, nil) do
-    Command.Aim.new(target, Ammo.Types.auto_suggest())
-  end
-
-  defp parse_aim(target, ammo) do
+  defp parse_aim(ammo, rest) do
     with {:ok, ammo} <- parse_ammo(ammo) do
-      Command.Aim.new(target, [ammo])
-    else
-      {:error, :unknown_ammo, name} -> {:error, "Unknown ammo: #{inspect(name)}"}
+      case lookahead(rest, ["with"]) do
+        {name, ["with", count, "charges"]} ->
+          with {:ok, charges} <- parse_charges(count) do
+            parse_object(name) |> Command.Aim.new(charges, ammo)
+          end
+
+        :no_match ->
+          parse_object(rest) |> Command.Aim.new(nil, ammo)
+      end
     end
   end
 
@@ -262,12 +283,20 @@ defmodule Boom.CommandParser do
     end
   end
 
+  defp parse_ammo(nil), do: {:ok, @default_ammo}
   defp parse_ammo(words) when is_list(words), do: words |> Enum.join(" ") |> parse_ammo()
 
   defp parse_ammo(name) when is_binary(name) do
     case Ammo.Types.fetch(name) do
-      {:ok, %Ammo{} = ammo} -> {:ok, ammo}
-      :error -> {:error, :unknown_ammo, name}
+      {:ok, %Ammo{} = ammo} -> {:ok, [ammo]}
+      :error -> {:error, "Unknown ammo: #{inspect(name)}"}
+    end
+  end
+
+  defp parse_charges(str) do
+    case Integer.parse(str) do
+      {int, ""} -> {:ok, int}
+      _ -> {:error, "Invalid number of charges: #{inspect(str)}"}
     end
   end
 end
