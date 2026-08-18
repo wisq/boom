@@ -6,7 +6,8 @@ defmodule Boom.Ammo.Types do
     %Ammo{name: "AP", blast_radius: 135, auto_suggest: true},
     %Ammo{name: "HE", blast_radius: 270, auto_suggest: true},
     %Ammo{name: "HCHE", blast_radius: 630, auto_suggest: true},
-    %Ammo{name: "STAR", blast_radius: 12740}
+    %Ammo{name: "STAR", blast_radius: 12740},
+    %Ammo{name: "TEAR", blast_radius: 1860}
   ]
 
   @types_by_name Map.new(@ammo_types, &{&1.name, &1})
