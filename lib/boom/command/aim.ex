@@ -1,4 +1,58 @@
 defmodule Boom.Command.Aim do
+  defmodule Parser do
+    import NimbleParsec
+    import Boom.CommandParser.ObjectName
+
+    def names, do: ["aim", "fire"]
+    def usage(cmd), do: "#{cmd} [ammo...] at <target> [with <1..6> charges]"
+
+    ammo = utf8_string([?A..?Z, ?a..?z], min: 1)
+
+    ammo_list =
+      ammo
+      |> repeat(
+        ignore(optional(string(" ")))
+        |> ignore(utf8_char([?,, ?/, ?+]))
+        |> ignore(optional(string(" ")))
+        |> concat(ammo)
+      )
+      |> reduce({__MODULE__, :to_ammos, []})
+      |> tag(:ammos)
+
+    min_charges =
+      utf8_char([?1..?6])
+      |> reduce({__MODULE__, :to_charges, []})
+      |> optional(ignore(string(" charges")))
+      |> unwrap_and_tag(:min_charges)
+
+    defparsec(
+      :parse_args,
+      choice([
+        ignore(string("at ")),
+        ammo_list |> ignore(string(" at "))
+      ])
+      |> object_name_until(" with ", :target)
+      |> optional(
+        ignore(string(" with "))
+        |> concat(min_charges)
+      )
+      |> eos()
+      |> reduce({Boom.Command.Aim, :new, []})
+    )
+
+    def to_charges([c]), do: c - ?0
+
+    def to_ammos(names) do
+      names
+      |> Enum.map(fn name ->
+        case Boom.Ammo.Types.fetch(name) do
+          {:ok, ammo} -> ammo
+          :error -> raise "Unknown ammo: #{name}"
+        end
+      end)
+    end
+  end
+
   import Boom.Guards
   import Ecto.Query, only: [from: 2]
   alias Boom.Command
@@ -11,8 +65,12 @@ defmodule Boom.Command.Aim do
   # Try the closest 19 elevations:
   @try_elevation_range -9..9
 
-  def new(target, min_charges, [%Ammo{} | _] = ammos)
-      when (is_object_name(target) and is_integer(min_charges)) or is_nil(min_charges) do
+  def new(opts) do
+    {target, opts} = Keyword.pop!(opts, :target)
+    {min_charges, opts} = Keyword.pop(opts, :min_charges)
+    {ammos, opts} = Keyword.pop(opts, :ammos, Ammo.Types.auto_suggest())
+    unless Enum.empty?(opts), do: raise("Unknown options: #{inspect(opts)}")
+
     %Command{
       module: __MODULE__,
       args: [target, min_charges, ammos]

@@ -75,6 +75,21 @@ defmodule Boom.ObservationLog do
     target
   end
 
+  def enable(id, pid \\ __MODULE__) when is_integer(id) do
+    case list_all() |> Enum.find(&(&1.id == id)) do
+      nil ->
+        {:error, :not_found}
+
+      %Observation{active: true} ->
+        {:error, :already_enabled}
+
+      %Observation{active: false, target: target} = obs ->
+        :ok = GenServer.call(pid, {:enable, obs})
+        PubSub.publish(:observation_log, {:observation_added, target})
+        {:ok, obs}
+    end
+  end
+
   def disable(id, pid \\ __MODULE__) when is_integer(id) do
     case list_all() |> Enum.find(&(&1.id == id)) do
       nil ->
@@ -132,6 +147,24 @@ defmodule Boom.ObservationLog do
     entries(target, ets)
     |> Enum.map(fn
       %Observation{id: ^id} = obs -> %Observation{obs | active: false}
+      %Observation{} = obs -> obs
+    end)
+    |> then(fn entries ->
+      :ets.insert(ets, [{target, entries}])
+    end)
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call(
+        {:enable, %Observation{id: id, target: target}},
+        _from,
+        %State{ets: ets} = state
+      ) do
+    entries(target, ets)
+    |> Enum.map(fn
+      %Observation{id: ^id} = obs -> %Observation{obs | active: true}
       %Observation{} = obs -> obs
     end)
     |> then(fn entries ->

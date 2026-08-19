@@ -1,4 +1,19 @@
 defmodule Boom.Command.Rollback do
+  defmodule Parser do
+    import NimbleParsec
+
+    def names, do: ["rollback", "undo"]
+    def usage(cmd), do: cmd
+
+    defparsec(
+      :parse_args,
+      eos()
+      |> reduce({__MODULE__, :to_command, []})
+    )
+
+    def to_command([]), do: Boom.Command.Rollback.new()
+  end
+
   alias Boom.Command
   alias Boom.ObservationLog
 

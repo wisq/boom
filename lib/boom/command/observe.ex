@@ -1,13 +1,159 @@
 defmodule Boom.Command.Observe do
+  defmodule Parser do
+    import NimbleParsec
+    import Boom.CommandParser.ObjectName
+    import Boom.CommandParser.Helpers
+
+    def usage, do: "<target> is at <grid>  /  <target> is <observations...> from <origin>"
+
+    block =
+      utf8_char([?A..?T, ?a..?t])
+      |> choice([
+        string("10"),
+        utf8_char([?1..?9])
+      ])
+      |> optional(
+        string(" ")
+        |> utf8_char([?0..?9])
+        |> string(":")
+        |> utf8_char([?0..?9])
+      )
+      |> reduce({__MODULE__, :to_block, []})
+      |> unwrap_and_tag(:origin)
+
+    float_with_error =
+      integer(min: 1)
+      |> optional(
+        string(".")
+        |> utf8_string([?0..?9], min: 1)
+      )
+      |> reduce({__MODULE__, :to_float_with_error, []})
+
+    range_suffix =
+      choice([
+        ignore(string(" "))
+        |> choice([
+          string("kilometre") |> replace(1000),
+          string("kilometer") |> replace(1000),
+          string("metre") |> replace(1),
+          string("meter") |> replace(1)
+        ])
+        |> optional(ignore(string("s"))),
+        optional(ignore(string(" ")))
+        |> choice([
+          string("km") |> replace(1000),
+          string("m") |> replace(1)
+        ])
+      ])
+
+    range =
+      float_with_error
+      |> optional(range_suffix)
+      |> reduce({__MODULE__, :to_range, []})
+      |> unwrap_and_tag(:range)
+
+    range_with_suffix =
+      float_with_error
+      |> concat(range_suffix)
+      |> reduce({__MODULE__, :to_range, []})
+      |> unwrap_and_tag(:range)
+
+    bearing_suffix =
+      ignore(
+        choice([
+          string("°"),
+          string(" degree") |> optional(string("s")),
+          optional(string(" ") |> choice([string("deg"), string("d")]))
+        ])
+      )
+
+    bearing =
+      float_with_error
+      |> optional(bearing_suffix)
+      |> unwrap_and_tag(:bearing)
+
+    bearing_with_suffix =
+      float_with_error
+      |> concat(bearing_suffix)
+      |> unwrap_and_tag(:bearing)
+
+    defparsec(
+      :parse_observation,
+      object_name_until(" is ", :target)
+      |> ignore(string(" is "))
+      |> choice([
+        # x is at a1 2:3
+        ignore(
+          choice([
+            string("at "),
+            string("in ")
+          ])
+        )
+        |> concat(block)
+        |> post_traverse(:handle_at),
+
+        # x is <ref> from <obj/block>
+        times(
+          choice([
+            ignore(string("range ")) |> concat(range),
+            ignore(string("bearing ")) |> concat(bearing),
+            range_with_suffix,
+            bearing_with_suffix
+          ])
+          |> optional(ignore(string(",")))
+          |> optional(ignore(string(" "))),
+          min: 1
+        )
+        |> ignore(string("from "))
+        |> choice([
+          block,
+          object_name(:origin)
+        ])
+      ])
+      |> eos()
+      |> reduce({Boom.Command.Observe, :new, []})
+    )
+
+    def to_block(parts) do
+      {:ok, block} = recombine(parts) |> Boom.Grid.block_by_name()
+      block
+    end
+
+    def to_float_with_error([int]), do: {int + 0.0, 0.5}
+
+    def to_float_with_error([int, ".", dec]) do
+      len = String.length(dec)
+      {String.to_float("#{int}.#{dec}"), 0.5 * 10 ** -len}
+    end
+
+    def to_range([{value, error}, units]), do: {value * units, error * units}
+    def to_range([{value, error}]), do: {value * 1000, error * 1000}
+
+    defp handle_at("", [origin: block], ctx, _, _) do
+      {"", [origin: block, at: true], ctx}
+    end
+  end
+
   alias Boom.Command
   alias Boom.Observation
   alias Boom.ObservationLog
 
-  def new([%Observation{} | _] = observations) do
-    %Command{
-      module: __MODULE__,
-      args: [observations]
-    }
+  def new(opts) do
+    {target, opts} = Keyword.pop!(opts, :target)
+    {origin, opts} = Keyword.pop!(opts, :origin)
+
+    opts
+    |> Enum.map(fn
+      {:bearing, {bearing, error}} -> Observation.Bearing.new(bearing, error, origin, target)
+      {:range, {range, error}} -> Observation.Range.new(range, error, origin, target)
+      {:at, true} -> Observation.At.new(origin, target)
+    end)
+    |> then(fn observations ->
+      %Command{
+        module: __MODULE__,
+        args: [observations]
+      }
+    end)
   end
 
   def run([%Observation{} | _] = obslist) do

@@ -1,7 +1,20 @@
 defmodule Boom.Command.Reset do
-  alias Boom.Command
+  defmodule Parser do
+    import NimbleParsec
 
-  def new, do: %Command{module: __MODULE__}
+    def names, do: ["RESET", "CLEAR"]
+    def usage(cmd), do: cmd
+
+    defparsec(
+      :parse_args,
+      eos()
+      |> reduce({__MODULE__, :to_command, []})
+    )
+
+    def to_command([]), do: Boom.Command.Reset.new()
+  end
+
+  def new, do: %Boom.Command{module: __MODULE__}
 
   def run do
     Boom.ObjectSupervisor.kill_all()
