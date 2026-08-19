@@ -14,10 +14,13 @@ defmodule Boom.Observation do
   alias Boom.Grid.Block
   alias Boom.ObjectRegistry
 
+  def get_origin_version(%Obs{origin: nil}), do: 1
   def get_origin_version(%Obs{origin: %Block{}}), do: 1
 
   def get_origin_version(%Obs{origin: name}) when is_object_name(name),
     do: ObjectRegistry.version(name)
+
+  def build_solution(%Obs{origin: nil}), do: :not_applicable
 
   def build_solution(%Obs{type: module, origin: %Block{geometry: geom}} = obs) do
     module.build_solution(obs, geom)

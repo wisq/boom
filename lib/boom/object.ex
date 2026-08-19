@@ -176,6 +176,7 @@ defmodule Boom.Object do
 
   defp build_solution([_ | _] = geoms) do
     geoms
+    |> Enum.reject(fn g -> g == :not_applicable end)
     |> Enum.reduce_while(Grid.grid_geometry(), fn
       :pending, _ -> {:halt, :pending}
       :unknown, _ -> {:halt, :unknown}

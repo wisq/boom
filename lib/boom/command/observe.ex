@@ -78,6 +78,42 @@ defmodule Boom.Command.Observe do
       |> concat(bearing_suffix)
       |> unwrap_and_tag(:bearing)
 
+    speed =
+      float_with_error
+      |> ignore(
+        choice([
+          string(" knot") |> optional(string("s")),
+          optional(string(" ")) |> string("kn"),
+          empty()
+        ])
+      )
+      |> unwrap_and_tag(:speed)
+
+    time =
+      integer(min: 1, max: 2)
+      |> ignore(string(":"))
+      |> integer(2)
+      |> ignore(string(":"))
+      |> integer(2)
+      |> reduce(:to_time)
+      |> unwrap_and_tag(:time)
+
+    moving =
+      ignore(string("moving "))
+      |> concat(bearing)
+      |> ignore(string(" at "))
+      |> concat(speed)
+      |> optional(
+        ignore(
+          choice([
+            string(" since "),
+            string(" @") |> optional(string(" "))
+          ])
+        )
+        |> concat(time)
+      )
+      |> reduce(:handle_moving)
+
     defparsec(
       :parse_observation,
       object_name_until(" is ", :target)
@@ -92,7 +128,8 @@ defmodule Boom.Command.Observe do
         )
         |> concat(block)
         |> post_traverse(:handle_at)
-        |> label("at <block>"),
+        |> label("at <block>")
+        |> optional(ignore(string(" ")) |> concat(moving)),
 
         # x is <ref> from <obj/block>
         times(
@@ -112,7 +149,10 @@ defmodule Boom.Command.Observe do
         |> choice([
           block,
           object_name(:origin)
-        ])
+        ]),
+
+        # x is moving <dir> at <speed> from <time>
+        moving
       ])
       |> label(~s{"at <block>" OR "<constraints> from <target>"})
       |> eos()
@@ -134,8 +174,19 @@ defmodule Boom.Command.Observe do
     def to_range([{value, error}, units]), do: {value * units, error * units}
     def to_range([{value, error}]), do: {value * 1000, error * 1000}
 
-    defp handle_at("", [origin: block], ctx, _, _) do
-      {"", [origin: block, at: true], ctx}
+    defp to_time([h, m, s]), do: Time.new!(h, m, s)
+
+    defp handle_at(rest, [origin: block], ctx, _, _) do
+      {rest, [origin: block, at: true], ctx}
+    end
+
+    defp handle_moving(opts) do
+      {:moving,
+       {
+         Keyword.fetch!(opts, :bearing),
+         Keyword.fetch!(opts, :speed),
+         Keyword.get(opts, :time)
+       }}
     end
   end
 
@@ -145,13 +196,14 @@ defmodule Boom.Command.Observe do
 
   def new(opts) do
     {target, opts} = Keyword.pop!(opts, :target)
-    {origin, opts} = Keyword.pop!(opts, :origin)
+    {origin, opts} = Keyword.pop(opts, :origin)
 
     opts
     |> Enum.map(fn
       {:bearing, {bearing, error}} -> Observation.Bearing.new(bearing, error, origin, target)
       {:range, {range, error}} -> Observation.Range.new(range, error, origin, target)
       {:at, true} -> Observation.At.new(origin, target)
+      {:moving, {bearing, speed, time}} -> Observation.Moving.new(target, bearing, speed, time)
     end)
     |> then(fn observations ->
       %Command{
