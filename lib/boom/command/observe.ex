@@ -3,6 +3,7 @@ defmodule Boom.Command.Observe do
     import NimbleParsec
     import Boom.CommandParser.ObjectName
     import Boom.CommandParser.Time
+    import Boom.CommandParser.Compass
     import Boom.CommandParser.Helpers
 
     def usage, do: "<target> is at <grid>  /  <target> is <observations...> from <origin>"
@@ -126,8 +127,10 @@ defmodule Boom.Command.Observe do
           choice([
             ignore(string("range ")) |> concat(range),
             ignore(string("bearing ")) |> concat(bearing),
+            ignore(string("due ")) |> compass(:bearing),
             range_with_suffix,
-            bearing_with_suffix
+            bearing_with_suffix,
+            compass(:bearing)
           ])
           |> label(~s{"range <r>" OR "bearing <b>" OR "<r>km" OR "<b>°"})
           |> optional(ignore(string(",")))
@@ -135,7 +138,12 @@ defmodule Boom.Command.Observe do
           min: 1
         )
         |> label("one or more constraints")
-        |> ignore(string("from "))
+        |> ignore(
+          choice([
+            string("from "),
+            string("of ")
+          ])
+        )
         |> choice([
           block,
           object_name(:origin)
