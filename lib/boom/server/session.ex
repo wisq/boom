@@ -113,7 +113,9 @@ defmodule Boom.Server.Session do
         {:error, iodata} when is_binary(iodata) or is_list(iodata) -> output_local(iodata)
       end
     rescue
-      e -> output_local(["Got ", inspect(e), " exception running command."])
+      e ->
+        Logger.error(Exception.format(:error, e, __STACKTRACE__))
+        output_local(["Got ", inspect(e), " exception running command."])
     end
   end
 
