@@ -2,6 +2,7 @@ defmodule Boom.Command.Aim do
   defmodule Parser do
     import NimbleParsec
     import Boom.CommandParser.ObjectName
+    alias Boom.CommandParser.ParseError
 
     def names, do: ["aim", "fire"]
     def usage(cmd), do: "#{cmd} [ammo...] at <target> [with <1..6> charges]"
@@ -47,7 +48,7 @@ defmodule Boom.Command.Aim do
       |> Enum.map(fn name ->
         case Boom.Ammo.Types.fetch(name) do
           {:ok, ammo} -> ammo
-          :error -> raise "Unknown ammo: #{name}"
+          :error -> raise ParseError, message: "Unknown ammo: #{inspect(name)}"
         end
       end)
     end

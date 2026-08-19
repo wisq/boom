@@ -107,9 +107,13 @@ defmodule Boom.Server.Session do
   end
 
   defp run_command(command) do
-    case CommandParser.parse(command) do
-      {:ok, %Command{} = cmd} -> Command.run(cmd)
-      {:error, iodata} when is_binary(iodata) or is_list(iodata) -> output_local(iodata)
+    try do
+      case CommandParser.parse(command) do
+        {:ok, %Command{} = cmd} -> Command.run(cmd)
+        {:error, iodata} when is_binary(iodata) or is_list(iodata) -> output_local(iodata)
+      end
+    rescue
+      e -> output_local(["Got ", inspect(e), " exception running command."])
     end
   end
 
