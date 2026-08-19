@@ -20,6 +20,8 @@ defmodule Boom.Scene.Home do
       offset: {0, 0},
       # Mouse cursor position.  Used to render the coordinate tooltip.
       cursor: {0, 0},
+      # Current targeting line to draw (initially none).
+      target_line: nil,
       # Are we currently drag-panning the map around?
       panning: false,
       # Render and zoom events are ignored while an event is already pending.
@@ -43,6 +45,7 @@ defmodule Boom.Scene.Home do
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
+  @target_line_opts [stroke: {2, :red}]
 
   @coords_tooltip_offset {5, 5}
 
@@ -73,6 +76,7 @@ defmodule Boom.Scene.Home do
 
     :ok = request_input(scene, [:cursor_pos, :cursor_button, :cursor_scroll, :viewport])
     PubSub.subscribe(self(), :object_registry)
+    PubSub.subscribe(self(), :aim_command)
     {:ok, scene |> assign(:state, state) |> queue_render()}
   end
 
@@ -216,10 +220,19 @@ defmodule Boom.Scene.Home do
   end
 
   @impl true
-  def handle_info({:object_updated, _}, %Scene{assigns: %{state: %State{} = state}} = scene) do
-    # Force a re-render.
-    state = %State{state | last_zoom: nil}
-    {:noreply, scene |> assign(:state, state) |> queue_render()}
+  def handle_info({:object_updated, _}, %Scene{} = scene) do
+    {:noreply, scene |> force_render()}
+  end
+
+  def handle_info(
+        {:aimed_at_target, from, to, bearing_text, distance_text},
+        %Scene{assigns: %{state: %State{} = state}} = scene
+      ) do
+    {degrees, "°"} = Float.parse(bearing_text)
+    radians = (degrees - 90) * :math.pi() / 180.0
+
+    state = %State{state | target_line: {from, to, bearing_text, distance_text, radians}}
+    {:noreply, scene |> assign(:state, state) |> force_render()}
   end
 
   defp rebuild_graph(%State{} = state) do
@@ -239,6 +252,7 @@ defmodule Boom.Scene.Home do
           |> draw_lines(:major, major_grid_lines(), @major_line_stroke, zoom, width, height)
           |> label_sectors(zoom)
           |> draw_object_geometries(obj_geoms, zoom)
+          |> draw_target_line(state.target_line, zoom)
         end,
         id: :map
       )
@@ -363,6 +377,11 @@ defmodule Boom.Scene.Home do
   defp coords_add({ax, ay}, {bx, by}), do: {ax + bx, ay + by}
   defp coords_subtract({ax, ay}, {bx, by}), do: {ax - bx, ay - by}
 
+  defp force_render(%Scene{assigns: %{state: %State{} = state}} = scene) do
+    state = %State{state | last_zoom: nil}
+    scene |> assign(:state, state) |> queue_render()
+  end
+
   defp queue_render(%Scene{assigns: %{state: %State{render_pending: true}}} = scene), do: scene
 
   defp queue_render(%Scene{assigns: %{state: %State{render_pending: false} = state}} = scene) do
@@ -435,11 +454,11 @@ defmodule Boom.Scene.Home do
   defp geo_inner_outer_coords(%Geo.Polygon{coordinates: [outer]}), do: [{:outer, outer}]
 
   defp coords_to_path([coord | rest], zoom) do
-    {x, y} = Grid.geo_coords_to_grid(coord)
+    {x, y} = Grid.geo_coords_to_grid(coord) |> coord_multiply(zoom)
 
     [
       :begin,
-      {:move_to, x * zoom, y * zoom}
+      {:move_to, x, y}
       | coords_to_path_rest(rest, zoom)
     ]
   end
@@ -447,10 +466,10 @@ defmodule Boom.Scene.Home do
   defp coords_to_path_rest([{_, _}], _), do: [:close_path]
 
   defp coords_to_path_rest([coord | rest], zoom) do
-    {x, y} = Grid.geo_coords_to_grid(coord)
+    {x, y} = Grid.geo_coords_to_grid(coord) |> coord_multiply(zoom)
 
     [
-      {:line_to, x * zoom, y * zoom}
+      {:line_to, x, y}
       | coords_to_path_rest(rest, zoom)
     ]
   end
@@ -556,4 +575,28 @@ defmodule Boom.Scene.Home do
     )
     |> then(fn {graph, _x, _y} -> graph end)
   end
+
+  defp draw_target_line(graph, nil, _), do: graph
+
+  defp draw_target_line(graph, {from_geo, to_geo, bearing_text, distance_text, radians}, zoom) do
+    from_grid = Grid.geo_coords_to_grid(from_geo) |> coord_multiply(zoom)
+    to_grid = Grid.geo_coords_to_grid(to_geo) |> coord_multiply(zoom)
+
+    {mid_x, mid_y} = line_midpoint(from_grid, to_grid)
+    text = bearing_text <> "\n" <> distance_text
+
+    graph
+    |> P.line({from_grid, to_grid}, @target_line_opts)
+    |> P.text(text,
+      fill: :red,
+      text_align: :center,
+      text_height: @font_size + 5,
+      translate: {mid_x, mid_y - 6},
+      rotate: radians
+    )
+  end
+
+  defp coord_multiply({x, y}, zoom), do: {x * zoom, y * zoom}
+
+  defp line_midpoint({x1, y1}, {x2, y2}), do: {(x1 + x2) / 2, (y1 + y2) / 2}
 end
