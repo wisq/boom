@@ -18,4 +18,6 @@ defmodule Boom.Guards do
 
   defguard is_block(b) when is_struct(b, Boom.Grid.Block)
   defguard is_origin(o) when is_object_name(o) or is_block(o)
+
+  defguard is_time(t) when is_struct(t, Time)
 end

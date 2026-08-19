@@ -2,6 +2,7 @@ defmodule Boom.Command.Aim do
   defmodule Parser do
     import NimbleParsec
     import Boom.CommandParser.ObjectName
+    import Boom.CommandParser.Time
     alias Boom.CommandParser.ParseError
 
     def names, do: ["aim", "fire"]
@@ -26,17 +27,34 @@ defmodule Boom.Command.Aim do
       |> optional(ignore(string(" charges")))
       |> unwrap_and_tag(:min_charges)
 
+    movement =
+      ignore(
+        choice([
+          string(" at "),
+          string(" @") |> optional(string(" "))
+        ])
+      )
+      |> time(:time)
+
     defparsec(
       :parse_args,
       choice([
         ignore(string("at ")),
         ammo_list |> ignore(string(" at "))
       ])
-      |> object_name_until(" with ", :target)
+      |> object_name_until(
+        choice([
+          string(" with "),
+          string(" at "),
+          string(" @")
+        ]),
+        :target
+      )
       |> optional(
         ignore(string(" with "))
         |> concat(min_charges)
       )
+      |> optional(movement)
       |> eos()
       |> reduce({Boom.Command.Aim, :new, []})
     )
@@ -60,6 +78,7 @@ defmodule Boom.Command.Aim do
   alias Boom.Ammo
   alias Boom.DB.GeoEngine
   alias Boom.DB.Repo
+  alias __MODULE__.Movement
 
   # Try the closest 7 bearings:
   @try_bearing_range -3..3//1
@@ -70,17 +89,19 @@ defmodule Boom.Command.Aim do
     {target, opts} = Keyword.pop!(opts, :target)
     {min_charges, opts} = Keyword.pop(opts, :min_charges)
     {ammos, opts} = Keyword.pop(opts, :ammos, Ammo.Types.auto_suggest())
+    {time, opts} = Keyword.pop(opts, :time)
     unless Enum.empty?(opts), do: raise("Unknown options: #{inspect(opts)}")
 
     %Command{
       module: __MODULE__,
-      args: [target, min_charges, ammos]
+      args: [target, min_charges, ammos, time]
     }
   end
 
-  def run(target, min_charges, [%Ammo{} | _] = ammos) when is_object_name(target) do
+  def run(target, min_charges, [%Ammo{} | _] = ammos, time)
+      when is_object_name(target) and (is_time(time) or is_nil(time)) do
     with {:ok, ownship_geom} <- get_solution(:ownship),
-         {:ok, target_geom} <- get_solution(target) do
+         {:ok, target_geom} <- get_solution(target, time) do
       %Geo.Point{coordinates: ownship_median} = GeoEngine.median(ownship_geom)
       %Geo.Point{coordinates: target_median} = GeoEngine.median(target_geom)
 
@@ -109,6 +130,12 @@ defmodule Boom.Command.Aim do
 
       {:error, :no_solution, :ownship} ->
         Boom.output("Cannot fire without a fix on our own location.")
+
+      {:error, :no_movement} ->
+        Boom.output("Target does not have any movement observations.")
+
+      {:error, :moved_off_map} ->
+        Boom.output("Target has moved off the map by #{time}.")
     end
   end
 
@@ -143,10 +170,38 @@ defmodule Boom.Command.Aim do
     end
   end
 
-  defp get_solution(object) do
+  defp get_solution(object, time \\ nil)
+
+  defp get_solution(object, nil) do
     case Boom.ObjectRegistry.solution(object) do
       g when is_geometry(g) -> {:ok, g}
       err when is_solution_error(err) -> {:error, :no_solution, object}
+    end
+  end
+
+  defp get_solution(object, time) do
+    with {:ok, from_geom} <- get_solution(object, nil),
+         {:ok, to_geom} <- Movement.future_geometry(object, time, from_geom) do
+      from_coord = GeoEngine.centroid(from_geom)
+      to_coord = GeoEngine.centroid(to_geom)
+      from_block = GeoEngine.centroid_grid_intersection(from_coord)
+      to_block = GeoEngine.centroid_grid_intersection(to_coord)
+      distance = from_coord.coordinates |> distance_to(to_coord.coordinates)
+
+      Boom.output([
+        "... ",
+        Boom.Object.object_title(object),
+        " moves ",
+        format_metres(distance),
+        if from_block == to_block do
+          [" within ", from_block.name]
+        else
+          [" from ", from_block.name, " to ", to_block.name]
+        end,
+        " ..."
+      ])
+
+      {:ok, to_geom}
     end
   end
 
@@ -307,7 +362,7 @@ defmodule Boom.Command.Aim do
   defp format_percent(1.0), do: "100%"
   defp format_percent(ratio), do: [format_float(ratio * 100, 1), "%"]
   defp format_metres(m) when m >= 1000, do: [format_float(m / 1000, 2), " km"]
-  defp format_metres(m) when m < 1000, do: [round(m), " m"]
+  defp format_metres(m) when m < 1000, do: [round(m) |> to_string(), " m"]
 
   defp format_float(float, decimals), do: :erlang.float_to_binary(float, decimals: decimals)
   defp highlight(iodata), do: [IO.ANSI.light_green(), iodata, IO.ANSI.reset()]

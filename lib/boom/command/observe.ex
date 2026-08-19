@@ -2,6 +2,7 @@ defmodule Boom.Command.Observe do
   defmodule Parser do
     import NimbleParsec
     import Boom.CommandParser.ObjectName
+    import Boom.CommandParser.Time
     import Boom.CommandParser.Helpers
 
     def usage, do: "<target> is at <grid>  /  <target> is <observations...> from <origin>"
@@ -89,29 +90,18 @@ defmodule Boom.Command.Observe do
       )
       |> unwrap_and_tag(:speed)
 
-    time =
-      integer(min: 1, max: 2)
-      |> ignore(string(":"))
-      |> integer(2)
-      |> ignore(string(":"))
-      |> integer(2)
-      |> reduce(:to_time)
-      |> unwrap_and_tag(:time)
-
     moving =
       ignore(string("moving "))
       |> concat(bearing)
       |> ignore(string(" at "))
       |> concat(speed)
-      |> optional(
-        ignore(
-          choice([
-            string(" since "),
-            string(" @") |> optional(string(" "))
-          ])
-        )
-        |> concat(time)
+      |> ignore(
+        choice([
+          string(" since "),
+          string(" @") |> optional(string(" "))
+        ])
       )
+      |> time(:time)
       |> reduce(:handle_moving)
 
     defparsec(
@@ -174,8 +164,6 @@ defmodule Boom.Command.Observe do
     def to_range([{value, error}, units]), do: {value * units, error * units}
     def to_range([{value, error}]), do: {value * 1000, error * 1000}
 
-    defp to_time([h, m, s]), do: Time.new!(h, m, s)
-
     defp handle_at(rest, [origin: block], ctx, _, _) do
       {rest, [origin: block, at: true], ctx}
     end
@@ -185,7 +173,7 @@ defmodule Boom.Command.Observe do
        {
          Keyword.fetch!(opts, :bearing),
          Keyword.fetch!(opts, :speed),
-         Keyword.get(opts, :time)
+         Keyword.fetch!(opts, :time)
        }}
     end
   end

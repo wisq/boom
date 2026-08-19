@@ -14,6 +14,13 @@ defmodule Boom.Command.List do
     def to_command([]), do: Boom.Command.List.new()
   end
 
+  defmodule ListState do
+    defstruct(
+      invalidated: MapSet.new(),
+      move_superseded: MapSet.new()
+    )
+  end
+
   alias Boom.Command
   alias Boom.Observation
   alias Boom.ObservationLog
@@ -24,14 +31,11 @@ defmodule Boom.Command.List do
     ObservationLog.list_all()
     |> Enum.sort_by(& &1.id, :desc)
     |> Enum.map_reduce(
-      MapSet.new(),
-      fn %Observation{target: target, type: type, active: active} = obs, invalidated ->
-        output = [colour(obs, target in invalidated), to_string(obs)]
-
-        case {type, active} do
-          {Observation.Invalidate, true} -> {output, MapSet.put(invalidated, target)}
-          _ -> {output, invalidated}
-        end
+      %ListState{},
+      fn %Observation{} = obs, state ->
+        output = [colour(obs, invalidated?(state, obs)), to_string(obs)]
+        state = apply_to_state(state, obs)
+        {output, state}
       end
     )
     |> elem(0)
@@ -39,6 +43,34 @@ defmodule Boom.Command.List do
     |> Enum.intersperse("\n")
     |> Boom.output()
   end
+
+  defp invalidated?(
+         %ListState{move_superseded: superseded},
+         %Observation{type: Observation.Moving, target: target}
+       ),
+       do: target in superseded
+
+  defp invalidated?(
+         %ListState{invalidated: invalidated},
+         %Observation{target: target}
+       ),
+       do: target in invalidated
+
+  defp apply_to_state(%ListState{} = state, %Observation{
+         type: Observation.Invalidate,
+         active: true,
+         target: target
+       }),
+       do: %ListState{state | invalidated: MapSet.put(state.invalidated, target)}
+
+  defp apply_to_state(%ListState{} = state, %Observation{
+         type: Observation.Moving,
+         active: true,
+         target: target
+       }),
+       do: %ListState{state | move_superseded: MapSet.put(state.move_superseded, target)}
+
+  defp apply_to_state(%ListState{} = state, %Observation{}), do: state
 
   # Active, not invalidated
   def colour(%Observation{active: true}, false), do: IO.ANSI.white()

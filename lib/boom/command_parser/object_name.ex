@@ -22,12 +22,18 @@ defmodule Boom.CommandParser.ObjectName do
     )
   end
 
-  def object_name_until(combinator \\ empty(), stop_at, tag_as) do
+  def object_name_until(combinator \\ empty(), stop_at, tag_as)
+
+  def object_name_until(combinator, stop_at, tag_as) when is_binary(stop_at) do
+    object_name_until(combinator, string(stop_at), tag_as)
+  end
+
+  def object_name_until(combinator, stop_at, tag_as) do
     combinator
     |> concat(
       @object_first_word
       |> repeat(
-        lookahead_not(string(stop_at))
+        lookahead_not(stop_at)
         |> concat(@object_next_word)
       )
       |> reduce({__MODULE__, :build_object_name, []})
