@@ -53,6 +53,19 @@ defmodule Boom.ObservationLog do
     )
   end
 
+  def last_target(ets \\ @ets) do
+    :ets.tab2list(ets)
+    |> then(fn
+      [] ->
+        nil
+
+      list ->
+        list
+        |> Enum.max_by(fn {_, [%Observation{id: id} | _]} -> id end)
+        |> elem(0)
+    end)
+  end
+
   def add(observations, pid \\ __MODULE__) when is_list(observations) do
     observations
     |> Enum.map(&add_one(&1, pid))

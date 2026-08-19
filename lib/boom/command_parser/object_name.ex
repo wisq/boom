@@ -1,6 +1,7 @@
 defmodule Boom.CommandParser.ObjectName do
   import NimbleParsec
   import Boom.Guards
+  alias Boom.CommandParser.ParseError
 
   object_name_chars =
     [?\s, ?;, ?:]
@@ -46,6 +47,13 @@ defmodule Boom.CommandParser.ObjectName do
     parts
     |> Boom.CommandParser.Helpers.recombine()
     |> then(&to_object_name/1)
+  end
+
+  defp to_object_name("last") do
+    case Boom.ObservationLog.last_target() do
+      nil -> raise ParseError, message: ~s{No observations, can't use "last" as object.}
+      name when is_object_name(name) -> name
+    end
   end
 
   defp to_object_name("ownship"), do: :ownship
