@@ -1,5 +1,7 @@
 defmodule Boom.CommandParser do
   import NimbleParsec
+  require Logger
+
   alias Boom.Command
 
   defmodule ParseError do
@@ -58,8 +60,12 @@ defmodule Boom.CommandParser do
           {:error, ["Error processing ", name, " command: ", msg, ", got ", inspect(rest)]}
       end
     rescue
-      e in ParseError -> {:error, e.message}
-      e -> {:error, ["Got ", inspect(e), " while processing ", name, " command."]}
+      e in ParseError ->
+        {:error, e.message}
+
+      e ->
+        Logger.error(Exception.format(:error, e, __STACKTRACE__))
+        {:error, ["Got ", inspect(e), " while processing ", name, " command."]}
     end
   end
 
@@ -76,8 +82,12 @@ defmodule Boom.CommandParser do
           {:error, ["Error processing observation: ", msg, ", got ", inspect(rest)]}
       end
     rescue
-      e in ParseError -> {:error, e.message}
-      e -> {:error, ["Got ", inspect(e), " while processing observation."]}
+      e in ParseError ->
+        {:error, e.message}
+
+      e ->
+        Logger.error(Exception.format(:error, e, __STACKTRACE__))
+        {:error, ["Got ", inspect(e), " while processing observation."]}
     end
   end
 end
