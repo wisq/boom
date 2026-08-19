@@ -20,6 +20,7 @@ defmodule Boom.Command.Observe do
       )
       |> reduce({__MODULE__, :to_block, []})
       |> unwrap_and_tag(:origin)
+      |> label("block name")
 
     float_with_error =
       integer(min: 1)
@@ -63,7 +64,7 @@ defmodule Boom.Command.Observe do
         choice([
           string("°"),
           string(" degree") |> optional(string("s")),
-          optional(string(" ") |> choice([string("deg"), string("d")]))
+          optional(string(" ")) |> choice([string("deg"), string("d")])
         ])
       )
 
@@ -90,7 +91,8 @@ defmodule Boom.Command.Observe do
           ])
         )
         |> concat(block)
-        |> post_traverse(:handle_at),
+        |> post_traverse(:handle_at)
+        |> label("at <block>"),
 
         # x is <ref> from <obj/block>
         times(
@@ -100,16 +102,19 @@ defmodule Boom.Command.Observe do
             range_with_suffix,
             bearing_with_suffix
           ])
+          |> label(~s{"range <r>" OR "bearing <b>" OR "<r>km" OR "<b>°"})
           |> optional(ignore(string(",")))
           |> optional(ignore(string(" "))),
           min: 1
         )
+        |> label("one or more constraints")
         |> ignore(string("from "))
         |> choice([
           block,
           object_name(:origin)
         ])
       ])
+      |> label(~s{"at <block>" OR "<constraints> from <target>"})
       |> eos()
       |> reduce({Boom.Command.Observe, :new, []})
     )

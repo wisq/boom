@@ -8,6 +8,7 @@ defmodule Boom.Command.Disable do
     defparsec(
       :parse_args,
       integer(min: 1)
+      |> label("observation number")
       |> eos()
       |> reduce({__MODULE__, :to_command, []})
     )

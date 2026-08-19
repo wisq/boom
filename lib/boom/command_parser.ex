@@ -49,8 +49,8 @@ defmodule Boom.CommandParser do
       {:ok, [%Command{} = cmd], "", _, _, _} ->
         {:ok, cmd}
 
-      {:error, msg, _, _, _, _} ->
-        {:error, ["Error processing ", name, " command: ", msg]}
+      {:error, msg, rest, _, _, _} ->
+        {:error, ["Error processing ", name, " command: ", msg, ", got ", inspect(rest)]}
     end
   end
 
@@ -62,8 +62,8 @@ defmodule Boom.CommandParser do
       {:error, ~s{expected string " is "}, _, _, _, _} ->
         {:error, "Unknown command."}
 
-      {:error, msg, _, _, _, _} ->
-        {:error, ["Error processing observation: ", msg]}
+      {:error, msg, rest, _, _, _} ->
+        {:error, ["Error processing observation: ", msg, ", got ", inspect(rest)]}
     end
   end
 end

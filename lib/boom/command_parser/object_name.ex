@@ -1,5 +1,6 @@
 defmodule Boom.CommandParser.ObjectName do
   import NimbleParsec
+  import Boom.Guards
 
   object_name_chars =
     [?\s, ?;, ?:]
@@ -15,8 +16,9 @@ defmodule Boom.CommandParser.ObjectName do
     |> concat(
       @object_first_word
       |> repeat(@object_next_word)
-      |> reduce({Boom.CommandParser.Helpers, :recombine, []})
+      |> reduce({__MODULE__, :build_object_name, []})
       |> unwrap_and_tag(tag_as)
+      |> label("object name")
     )
   end
 
@@ -28,8 +30,20 @@ defmodule Boom.CommandParser.ObjectName do
         lookahead_not(string(stop_at))
         |> concat(@object_next_word)
       )
-      |> reduce({Boom.CommandParser.Helpers, :recombine, []})
+      |> reduce({__MODULE__, :build_object_name, []})
       |> unwrap_and_tag(tag_as)
+      |> label("object name")
     )
   end
+
+  def build_object_name(parts) do
+    parts
+    |> Boom.CommandParser.Helpers.recombine()
+    |> then(&to_object_name/1)
+  end
+
+  defp to_object_name("ownship"), do: :ownship
+  defp to_object_name("nest"), do: :ownship
+  defp to_object_name("iron nest"), do: :ownship
+  defp to_object_name(name) when is_object_name(name), do: name
 end

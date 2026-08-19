@@ -17,7 +17,7 @@ defmodule Boom.Command.Aim do
         |> concat(ammo)
       )
       |> reduce({__MODULE__, :to_ammos, []})
-      |> tag(:ammos)
+      |> unwrap_and_tag(:ammos)
 
     min_charges =
       utf8_char([?1..?6])
