@@ -42,7 +42,10 @@ defmodule Boom.CommandParser do
   )
 
   def parse(line) do
-    line = line |> String.replace(~r/\s+/, " ")
+    line =
+      line
+      |> String.trim()
+      |> String.replace(~r/\s+/, " ")
 
     case parse_command_name(line) do
       {:ok, [{name, module}], args, _, _, _} -> parse_command(module, name, args)

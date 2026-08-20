@@ -22,7 +22,8 @@ defmodule Boom.Command.Aim do
       |> unwrap_and_tag(:ammos)
 
     min_charges =
-      utf8_char([?1..?6])
+      ignore(string(" with "))
+      |> utf8_char([?1..?6])
       |> reduce({__MODULE__, :to_charges, []})
       |> optional(ignore(string(" charges")))
       |> unwrap_and_tag(:min_charges)
@@ -50,11 +51,13 @@ defmodule Boom.Command.Aim do
         ]),
         :target
       )
-      |> optional(
-        ignore(string(" with "))
-        |> concat(min_charges)
-      )
-      |> optional(movement)
+      |> choice([
+        min_charges |> concat(movement),
+        movement |> concat(min_charges),
+        min_charges,
+        movement,
+        empty()
+      ])
       |> eos()
       |> reduce({Boom.Command.Aim, :new, []})
     )
