@@ -111,14 +111,13 @@ defmodule Boom.Command.Observe do
 
     defparsec(
       :parse_observation,
-      object_name_until(" is ", :target)
-      |> ignore(string(" is "))
+      object_name_until(choice([string(" is "), string(" has ")]), :target)
       |> choice([
-        # x is at a1 2:3
+        # x is at <block>
         ignore(
           choice([
-            string("at "),
-            string("in ")
+            string(" is at "),
+            string(" is in ")
           ])
         )
         |> concat(block)
@@ -127,7 +126,8 @@ defmodule Boom.Command.Observe do
         |> optional(ignore(string(" ")) |> concat(moving)),
 
         # x is <ref> from <obj/block>
-        times(
+        ignore(string(" is "))
+        |> times(
           choice([
             ignore(string("range ")) |> concat(range),
             ignore(string("bearing ")) |> concat(bearing),
@@ -153,8 +153,18 @@ defmodule Boom.Command.Observe do
           object_name(:origin)
         ]),
 
+        # x has moved [to <block>]
+        ignore(string(" has moved"))
+        |> optional(
+          ignore(string(" to "))
+          |> concat(block)
+        )
+        |> post_traverse(:handle_invalidate)
+        |> label("has moved [to <block>]"),
+
         # x is moving <dir> at <speed> from <time>
-        moving
+        ignore(string(" is "))
+        |> concat(moving)
       ])
       |> label(~s{"at <block>" OR "<constraints> from <target>"})
       |> eos()
@@ -180,6 +190,14 @@ defmodule Boom.Command.Observe do
       {rest, [origin: block, at: true], ctx}
     end
 
+    defp handle_invalidate(rest, [origin: block], ctx, _, _) do
+      {rest, [origin: block, at: true, invalidate: true], ctx}
+    end
+
+    defp handle_invalidate(rest, [], ctx, _, _) do
+      {rest, [invalidate: true], ctx}
+    end
+
     defp handle_moving(opts) do
       {:moving,
        {
@@ -203,6 +221,7 @@ defmodule Boom.Command.Observe do
       {:bearing, {bearing, error}} -> Observation.Bearing.new(bearing, error, origin, target)
       {:range, {range, error}} -> Observation.Range.new(range, error, origin, target)
       {:at, true} -> Observation.At.new(origin, target)
+      {:invalidate, true} -> Observation.Invalidate.new(target)
       {:moving, {bearing, speed, time}} -> Observation.Moving.new(target, bearing, speed, time)
     end)
     |> then(fn observations ->
