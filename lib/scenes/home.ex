@@ -229,7 +229,7 @@ defmodule Boom.Scene.Home do
         %Scene{assigns: %{state: %State{} = state}} = scene
       ) do
     {degrees, "°"} = Float.parse(bearing_text)
-    radians = (degrees - 90) * :math.pi() / 180.0
+    radians = (:math.fmod(degrees, 180.0) - 90) * :math.pi() / 180.0
 
     state = %State{state | target_line: {from, to, bearing_text, distance_text, radians}}
     {:noreply, scene |> assign(:state, state) |> force_render()}

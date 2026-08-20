@@ -125,7 +125,7 @@ defmodule Boom.Command.Aim do
 
       ammos
       |> Enum.sort_by(& &1.blast_radius)
-      |> try_ammo(ownship_geom, target_geom, potentials, target_area)
+      |> try_ammo(ownship_geom, ownship_median, target_geom, potentials, target_area)
       |> Boom.output()
     else
       {:error, :no_solution, ^target} ->
@@ -142,13 +142,16 @@ defmodule Boom.Command.Aim do
     end
   end
 
-  defp try_ammo([ammo | rest], ownship_geom, target_geom, potentials, target_area) do
+  defp try_ammo([ammo | rest], ownship_geom, ownship_median, target_geom, potentials, target_area) do
     {best_id, area} = best_solution(potentials, ownship_geom, target_geom, ammo)
     best = potentials |> Enum.find(&(&1.id == best_id))
     area_ratio = area / target_area
 
     {charges, elevation} = best.elevation
     distance = shot_distance(best.elevation)
+
+    bearing_text = format_bearing(best.bearing)
+    distance_text = format_metres(distance)
 
     output =
       [
@@ -159,19 +162,33 @@ defmodule Boom.Command.Aim do
           " powder charge",
           if(charges == 1, do: "", else: "s")
         ],
-        ["  bearing = ", format_bearing(best.bearing) |> highlight()],
+        ["  bearing = ", bearing_text |> highlight()],
         ["  elevation = ", format_elevation(elevation) |> highlight()],
-        ["  distance = ", format_metres(distance)],
+        ["  distance = ", distance_text],
         ["has a hit probability of ", format_percent(area_ratio), "."]
       ]
       |> Enum.intersperse("\n")
 
     if area_ratio >= 0.999 || rest == [] do
+      PubSub.publish(:aim_command, {
+        :aimed_at_target,
+        ownship_median,
+        add_coords(ownship_median, best.offset),
+        bearing_text |> IO.iodata_to_binary(),
+        distance_text |> IO.iodata_to_binary()
+      })
+
       output
     else
-      [output, "\n\n" | try_ammo(rest, ownship_geom, target_geom, potentials, target_area)]
+      [
+        output,
+        "\n\n"
+        | try_ammo(rest, ownship_geom, ownship_median, target_geom, potentials, target_area)
+      ]
     end
   end
+
+  defp add_coords({x1, y1}, {x2, y2}), do: {x1 + x2, y1 + y2}
 
   defp get_solution(object, time \\ nil)
 
