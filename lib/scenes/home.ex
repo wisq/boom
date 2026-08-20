@@ -42,20 +42,27 @@ defmodule Boom.Scene.Home do
   alias Boom.Grid.Block
   alias Boom.DB.GeoEngine
 
+  @font :roboto
+  @font_size 20
+  @line_height 30
+
   @major_line_stroke {1, :white}
   @minor_line_stroke {1, {255, 255, 255, 64}}
   @sector_label_colour {255, 255, 255, 192}
+
   @target_line_opts [stroke: {2, :red}]
+  @target_label_opts [
+    fill: :red,
+    font: :roboto_bold,
+    text_align: :center,
+    text_height: @font_size + 5
+  ]
 
   @coords_tooltip_offset {5, 5}
 
   @min_padding 10
   @scroll_delay 20
   @zoom_factor 1.05
-
-  @font :roboto
-  @font_size 20
-  @line_height 30
 
   {:ok, asset_hash} = Scenic.Assets.Static.to_hash(@font)
   {:ok, font_data} = Scenic.Assets.Static.load(asset_hash)
@@ -587,12 +594,12 @@ defmodule Boom.Scene.Home do
 
     graph
     |> P.line({from_grid, to_grid}, @target_line_opts)
-    |> P.text(text,
-      fill: :red,
-      text_align: :center,
-      text_height: @font_size + 5,
-      translate: {mid_x, mid_y - 6},
-      rotate: radians
+    |> P.text(
+      text,
+      [
+        translate: {mid_x, mid_y - 6},
+        rotate: radians
+      ] ++ @target_label_opts
     )
   end
 
