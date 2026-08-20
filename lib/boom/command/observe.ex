@@ -66,7 +66,11 @@ defmodule Boom.Command.Observe do
         choice([
           string("°"),
           string(" degree") |> optional(string("s")),
-          optional(string(" ")) |> choice([string("deg"), string("d")])
+          optional(string(" "))
+          |> choice([
+            string("deg") |> optional(string("s")),
+            string("d")
+          ])
         ])
       )
 
