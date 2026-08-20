@@ -36,9 +36,13 @@ A few object names are special:
 
 Note that Boom always operates in **uncertainty**.  Whenever you enter a command, it's assumed the target could be anywhere that matches that command.
 
-Accordingly, if you say that `x is at g5 9:8`, that entire grid square (G5 9:8) will be filled in as possible locations:
+Accordingly, if you say that `x is at b2 2:2`, that entire grid square (sector B2, grid 2:2) will be filled in as possible locations:
 
-If you then say that `y is bearing 45° from x`, you'll get an expanding wedge that starts at G5 9:8 and extends northeast, getting wider as it goes:
+<img width="569" height="598" alt="Screenshot 2026-08-19 at 23 09 00" src="https://github.com/user-attachments/assets/e771daf9-01d1-4d95-bb4f-819c07bb3f00" />
+
+If you then say that `y is bearing 45° from x`, you'll get an expanding wedge that starts at B2 2:2 and extends northeast, getting wider as it goes:
+
+<img width="550" height="575" alt="Screenshot 2026-08-19 at 23 09 22" src="https://github.com/user-attachments/assets/1d8e4d88-2974-4357-9dd9-d01320f60663" />
 
 That's because — as the game tells you early on — `y` might be anywhere between 44.5° and 45.5° from `x`.  And since `x` is an entire grid square, our bearing line **begins** as wide as a single grid square, and only gets worse with distance.
 
