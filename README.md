@@ -11,6 +11,20 @@ Allows triangulation and trilateration of game objects, either based on grid coo
 - Run `mix scenic.run` to start the server.  This will launch a map window that updates in realtime as you add observations.
 - In a different terminal window, run `./client.sh` to launch the command-line client and connect to the server to issue commands.
 
+Here's a series of example commands to get you started:
+
+- Set your location:
+  - `iron nest is at c4 3:5`
+- Set up `target1` and aim at it:
+  - `target1 is at g9 4:3`
+  - `aim at target1`
+- Triangulate `target2` and aim at it:
+  - `spotter1 is at j9 8:3`
+  - `spotter2 is at e5 3:3`
+  - `target2 is bearing 45 from spotter2`
+  - `target2 is range 3.22km from spotter1`
+  - `aim ap at target2 with 4 charges`
+
 ## Observations
 
 The primary way to update the map is to input _observations_.  These generally take the form of `<object name> is <observation>`.
@@ -157,6 +171,8 @@ To calculate shot parameters, an "ideal" shot is calculated, i.e. from the "cent
 Then, tiny variations are made to the bearing and elevation of the gun.  For each setting, the app draws a series of blast circles, based on simulated shots from possible Iron Nest locations.  The resulting hit percentage is the percent of the target area contained within each of these blast circles, on average.
 
 **For precise targeting, the Iron Nest's known location must also be precise.**  This normally isn't a huge problem, since nearly all maps start out with you knowing your exact grid location.  However, after e.g. an Emergency Move, you'll want to make sure you have a pretty good idea where you ended up — ideally narrowed down to a single grid square.
+
+*Alias: `fire`, e.g. `fire at <target>`*
 
 ### Ammo
 
