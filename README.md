@@ -46,6 +46,23 @@ A few object names are special:
  - `iron nest`, `nest`, `ownship` — These all place the Iron Nest, i.e. you, in the world.  You'll need to place this before you can use the `aim` command.
  - `last` — Refers to the target of the last observation.  Obviously cannot be used if there are no observations.  Particularly useful for `aim` commands, especially when combined with the command history.
 
+### Block names
+
+Blocks are always in the same format you see in-game — a letter and number representing a _sector_, and (optionally) two colon-separated numbers representing a _subdivision_.
+
+Examples:
+
+ - `A5` (or `a5`) — the entire A5 sector
+ - `b4 9:4` — grid 9:4 within the B4 sector
+
+Additionally, for extra precision — for example, when inputting items you can see on the map and trying to hit them with a DRIL round — you can add an extra pair of two-digit numbers representing the percentage offset within the grid square:
+
+ - `c8 3:4 +30+93` — grid C8 3:4, 30% right from the left side, 93% up from the bottom
+ - `c8 3:4 +30-07` — exactly the same thing — negative numbers count from the right/top
+  - note that `+30-7` will not work here — to ensure clarity, the zero is required
+
+Don't worry about getting these exactly right.  The point is not to literally nail down the target in the world, but rather, to specify exactly where you intend to shoot.
+
 ### Uncertainty
 
 Note that Boom always operates in **uncertainty**.  Whenever you enter a command, it's assumed the target could be anywhere that matches that command.
