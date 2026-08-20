@@ -149,16 +149,22 @@ Standard error rules apply, so the speed of `16.2` above is assumed to be somewh
 
 Used to invalidate **all** previous observations about a target.  (The exception is movement observations, which are only invalidated by entering a new movement observation.)
 
-You can enter this on its own, or you can also combine it with an `is at` observation.
+You can enter this on its own, or you can enter a grid coordinate or sector (essentially combining it with an `is at` command).
+
+For moving the Iron Nest itself, an `emergency move` command (or its short form, `move`) is available.
 
 Examples:
 
  - `target has moved`
  - `target has moved to a3 4:4`
  - `iron nest has moved`
-   - Equivalent: `emergency move`
+   - Equivalent:
+   - `emergency move`
+   - `move`
  - `iron nest has moved to a5`
-   - Equivalent: `emergency move to a5`
+   - Equivalent:
+   - `emergency move to a5`
+   - `move to a5`
 
 ## `aim` / `fire`
 

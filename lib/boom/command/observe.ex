@@ -2,27 +2,11 @@ defmodule Boom.Command.Observe do
   defmodule Parser do
     import NimbleParsec
     import Boom.CommandParser.ObjectName
+    import Boom.CommandParser.Block
     import Boom.CommandParser.Time
     import Boom.CommandParser.Compass
-    import Boom.CommandParser.Helpers
 
     def usage, do: "<target> is at <grid>  /  <target> is <observations...> from <origin>"
-
-    block =
-      utf8_char([?A..?T, ?a..?t])
-      |> choice([
-        string("10"),
-        utf8_char([?1..?9])
-      ])
-      |> optional(
-        string(" ")
-        |> utf8_char([?0..?9])
-        |> string(":")
-        |> utf8_char([?0..?9])
-      )
-      |> reduce({__MODULE__, :to_block, []})
-      |> unwrap_and_tag(:origin)
-      |> label("block name")
 
     float_with_error =
       integer(min: 1)
@@ -120,7 +104,7 @@ defmodule Boom.Command.Observe do
             string(" is in ")
           ])
         )
-        |> concat(block)
+        |> block(:origin)
         |> post_traverse(:handle_at)
         |> label("at <block>")
         |> optional(ignore(string(" ")) |> concat(moving)),
@@ -149,7 +133,7 @@ defmodule Boom.Command.Observe do
           ])
         )
         |> choice([
-          block,
+          block(:origin),
           object_name(:origin)
         ]),
 
@@ -157,7 +141,7 @@ defmodule Boom.Command.Observe do
         ignore(string(" has moved"))
         |> optional(
           ignore(string(" to "))
-          |> concat(block)
+          |> block(:origin)
         )
         |> post_traverse(:handle_invalidate)
         |> label("has moved [to <block>]"),
@@ -170,11 +154,6 @@ defmodule Boom.Command.Observe do
       |> eos()
       |> reduce({Boom.Command.Observe, :new, []})
     )
-
-    def to_block(parts) do
-      {:ok, block} = recombine(parts) |> Boom.Grid.block_by_name()
-      block
-    end
 
     def to_float_with_error([int]), do: {int + 0.0, 0.5}
 

@@ -15,6 +15,7 @@ defmodule Boom.CommandParser do
     Command.Enable,
     Command.Rollback,
     Command.Describe,
+    Command.EmergencyMove,
     Command.Aim
   ]
 
