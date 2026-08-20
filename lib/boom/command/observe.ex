@@ -107,6 +107,7 @@ defmodule Boom.Command.Observe do
         |> times(
           choice([
             ignore(string("range ")) |> concat(range),
+            ignore(string("distance ")) |> concat(range),
             ignore(string("bearing ")) |> concat(bearing),
             ignore(string("due ")) |> compass(:bearing),
             range_with_suffix,

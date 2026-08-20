@@ -112,16 +112,17 @@ Examples:
     - `target point is bearing 55d, range 2.33km from infantry1`
     - `aa1 is 3.40km 180° from alpha`
 
-### `is range`
+### `is range` / `is distance`
 
 This is used to put an object at a specific range from another object (or a grid location).
 
-You may omit the word "range", but **only if** you explicitly identify the number as being kilometres (or metres).  If used as `is range`, then you **may** enter a units suffix; otherwise, it's assumed to be kilometres.
+You may omit the word "range" / "distance"), but **only if** you explicitly identify the number as being kilometres (or metres).  If used as `is range` / `is distance`, then you **may** enter a units suffix; otherwise, it's assumed to be kilometres.
 
 Examples:
 
   - `house is range 4.22 from mole`
     - Equivalent:
+    - `house is distance 4.22 from mole`
     - `house is range 4.22km from mole`
     - `house is 4.22km from mole`
   - `ship is range 2.00km from o1 0:4`
