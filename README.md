@@ -160,7 +160,7 @@ Examples:
  - `iron nest has moved to a5`
    - Equivalent: `emergency move to a5`
 
-## `aim`
+## `aim` / `fire`
 
 Next to the observation commands, this is the second most important and essential command.  It's used to determine the bearing, elevation, and number of charges needed to fire at the given target, and the chance to hit with those parameters.
 
@@ -169,8 +169,6 @@ To calculate shot parameters, an "ideal" shot is calculated, i.e. from the "cent
 Then, tiny variations are made to the bearing and elevation of the gun.  For each setting, the app draws a series of blast circles, based on simulated shots from possible Iron Nest locations.  The resulting hit percentage is the percent of the target area contained within each of these blast circles, on average.
 
 **For precise targeting, the Iron Nest's known location must also be precise.**  This normally isn't a huge problem, since nearly all maps start out with you knowing your exact grid location.  However, after e.g. an Emergency Move, you'll want to make sure you have a pretty good idea where you ended up — ideally narrowed down to a single grid square.
-
-*Alias: `fire`, e.g. `fire at <target>`*
 
 ### Ammo
 
@@ -213,43 +211,33 @@ Darkened entries are observations that have been invalidated.  Most observations
 
 Red entries are observations that have been *specifically* disabled (by the `disable` or `rollback` commands).  Dark red entries are observations that have both invalidated **and** explicitly disabled.
 
-### `disable`
+### `disable` / `delete`
 
 Disables a specific observation.  Used as `disable <id>`, where `<id>` is the ID number of a rule from the `list` command.
 
 Note that if you disable an observation that invalidates other observations (i.e. `has moved` / `is moving`), it may cause prior observation(s) to become valid again.  There is no indication of this in the output of the `disable` command, so be aware of this if you're disabling those sorts of commands.
 
-*Alias: `delete`*
-
-### `enable`
+### `enable` / `undelete`
 
 Enables a specific observation (that was previously disabled).  Same usage as `disable`.
 
 As per `disable`, re-enabling an `is moving` or `has moved` command may (silently) invalidate prior commands.
 
-*Alias: `undelete`*
-
-### `rollback`
+### `rollback` / `undo`
 
 Disables the last (non-disabled) observation entered.  Exactly the same as `disable`, except that it automatically picks the ID to disable.
 
 Entering this command repeatedly will disable one observation each time (going backwards through the observation log).
 
-*Alias: `undo`*
-
-### `describe`
+### `describe` / `show` / `where is`
 
 Describes (in text) the current known location of an object.  Usage is `describe <object>`, where `<object>` is an object name.
 
 This is the same text that is automatically output when an object's location is updated.
 
-*Aliases: `show`, `where is`*
-
-### `RESET`
+### `RESET` / `CLEAR`
 
 Deletes all objects and observations, clearing the entire map.  Must be entered in all caps, for safety.  Functionally, it's as though you just closed and restarted the entire app (without needing to actually do that).
-
-*Alias: `CLEAR`*
 
 ## Legal stuff
 
