@@ -136,16 +136,14 @@ This means that
  - `aimpoint is bearing 34°, range 1.00km from ship`
  - `aim at aimpoint`
 
-(In fact, using the `aim` command on moving targets actually directly uses the `is bearing` and `is range` code under the hood.)
-
-The only differences are that
+In fact, using the `aim` command on moving targets actually directly uses the `is bearing` and `is range` code under the hood.  The only differences are that
 
 - you don't have to do the speed math yourself (or rely on a table);
 - it's a lot easier to target several points in an object's movement;
 - you don't get a ton of extra aimpoints cluttering up the map; and,
 - the error margins are slightly different.
 
-(Standard error rules apply, so the speed of `16.2` above is assumed to be somewhere between 16.15 and 16.25 knots, and the range error is calculated accordingly.)
+Standard error rules apply, so the speed of `16.2` above is assumed to be somewhere between 16.15 and 16.25 knots, and the range error is calculated accordingly.
 
 ### `has moved`
 
