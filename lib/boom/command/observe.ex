@@ -4,17 +4,10 @@ defmodule Boom.Command.Observe do
     import Boom.CommandParser.ObjectName
     import Boom.CommandParser.Block
     import Boom.CommandParser.Time
+    import Boom.CommandParser.FloatWithError
     import Boom.CommandParser.Compass
 
     def usage, do: "<target> is at <grid>  /  <target> is <observations...> from <origin>"
-
-    float_with_error =
-      integer(min: 1)
-      |> optional(
-        string(".")
-        |> utf8_string([?0..?9], min: 1)
-      )
-      |> reduce({__MODULE__, :to_float_with_error, []})
 
     range_suffix =
       choice([
@@ -34,13 +27,13 @@ defmodule Boom.Command.Observe do
       ])
 
     range =
-      float_with_error
+      float_with_error()
       |> optional(range_suffix)
       |> reduce({__MODULE__, :to_range, []})
       |> unwrap_and_tag(:range)
 
     range_with_suffix =
-      float_with_error
+      float_with_error()
       |> concat(range_suffix)
       |> reduce({__MODULE__, :to_range, []})
       |> unwrap_and_tag(:range)
@@ -59,17 +52,17 @@ defmodule Boom.Command.Observe do
       )
 
     bearing =
-      float_with_error
+      float_with_error()
       |> optional(bearing_suffix)
       |> unwrap_and_tag(:bearing)
 
     bearing_with_suffix =
-      float_with_error
+      float_with_error()
       |> concat(bearing_suffix)
       |> unwrap_and_tag(:bearing)
 
     speed =
-      float_with_error
+      float_with_error()
       |> ignore(
         choice([
           string(" knot") |> optional(string("s")),
@@ -154,13 +147,6 @@ defmodule Boom.Command.Observe do
       |> eos()
       |> reduce({Boom.Command.Observe, :new, []})
     )
-
-    def to_float_with_error([int]), do: {int + 0.0, 0.5}
-
-    def to_float_with_error([int, ".", dec]) do
-      len = String.length(dec)
-      {String.to_float("#{int}.#{dec}"), 0.5 * 10 ** -len}
-    end
 
     def to_range([{value, error}, units]), do: {value * units, error * units}
     def to_range([{value, error}]), do: {value * 1000, error * 1000}
